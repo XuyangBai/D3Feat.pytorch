@@ -1,0 +1,15 @@
+data/*
+kernels/*.ply
+snapshot/*
+tensorboard/*
+*/__pycache__/*
+__pycache__/*
+*/pyc
+.idea/
+*.o
+*.so
+pytorch_ops/*
+geometric_registration/*/
+geometric_registration/gt_result/
+geometric_registration/pred_result/
+D3Feat_temp/*
