@@ -19,8 +19,8 @@ class ThreeDMatchConfig(Config):
     safe_radius = 0.1
     first_subsampling_dl = 0.03
     in_features_dim = 1
-    data_train_dir = "/home/xybai/KPConv/data/3DMatch/"
-    data_test_dir = "/home/xybai/KPConv/data/3DMatch/"
+    data_train_dir = "/ssd2/xuyang/3DMatch/"
+    data_test_dir = "/ssd2/xuyang/3DMatch/"
     train_batch_size = 1
     test_batch_size = 1
 

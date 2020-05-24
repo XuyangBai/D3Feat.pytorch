@@ -1,5 +1,5 @@
 import sys
-import open3d
+import open3d as o3d
 import numpy as np
 import time
 import os
@@ -81,8 +81,8 @@ def register2Fragments(id1, id2, keyptspath, descpath, resultpath, logpath, gtLo
         # calculate the inlier ratio, this is for Feature Matching Recall.
         gt_trans = gtLog[key]
         frag1 = source_keypts[corr[:, 0]]
-        frag2_pc = open3d.PointCloud()
-        frag2_pc.points = open3d.utility.Vector3dVector(target_keypts[corr[:, 1]])
+        frag2_pc = o3d.PointCloud()
+        frag2_pc.points = o3d.utility.Vector3dVector(target_keypts[corr[:, 1]])
         frag2_pc.transform(gt_trans)
         frag2 = np.asarray(frag2_pc.points)
         distance = np.sqrt(np.sum(np.power(frag1 - frag2, 2), axis=1))

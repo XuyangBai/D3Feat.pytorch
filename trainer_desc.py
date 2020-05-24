@@ -188,16 +188,16 @@ class Trainer(object):
 
     def evaluate_registration(self, epoch):
         self.model.eval()
-        import open3d
+        import open3d as o3d
         from utils.pointcloud import make_point_cloud
         from datasets.ThreeDMatch import ThreeDMatchTestset
         from datasets.dataloader import get_dataloader
         from geometric_registration.test_3DMatch import build_correspondence
         from geometric_registration.common import get_pcd, get_keypts, get_desc, loadlog
         if epoch % 20 == 0:
-            dset = ThreeDMatchTestset(root='/home/xybai/KPConv/data/3DMatch', config=self.config)
+            dset = ThreeDMatchTestset(root='/ssd2/xuyang/3DMatch', config=self.config)
         else:
-            dset = ThreeDMatchTestset(root='/home/xybai/KPConv/data/3DMatch', config=self.config, last_scene=True)
+            dset = ThreeDMatchTestset(root='/ssd2/xuyang/3DMatch', config=self.config, last_scene=True)
         dataloader = get_dataloader(dset, batch_size=1, shuffle=False)
         dataloader_iter = dataloader.__iter__()
         save_path = f'D3Feat_temp'
@@ -225,7 +225,7 @@ class Trainer(object):
                 os.mkdir(keypoint_path_scene)
             if not os.path.exists(score_path_scene):
                 os.mkdir(score_path_scene)
-            pcdpath = f"/home/xybai/KPConv/data/3DMatch/fragments/{scene}/"
+            pcdpath = f"/ssd2/xuyang/3DMatch/fragments/{scene}/"
             num_frag = len([filename for filename in os.listdir(pcdpath) if filename.endswith('ply')])
             # generate descriptors for each fragment
             for ids in range(num_frag):
@@ -283,8 +283,8 @@ class Trainer(object):
 
                         gt_trans = gtLog[key]
                         frag1 = source_keypts[corr[:, 0]]
-                        frag2_pc = open3d.PointCloud()
-                        frag2_pc.points = open3d.utility.Vector3dVector(target_keypts[corr[:, 1]])
+                        frag2_pc = o3d.geometry.PointCloud()
+                        frag2_pc.points = o3d.utility.Vector3dVector(target_keypts[corr[:, 1]])
                         frag2_pc.transform(gt_trans)
                         frag2 = np.asarray(frag2_pc.points)
                         distance = np.sqrt(np.sum(np.power(frag1 - frag2, 2), axis=1))

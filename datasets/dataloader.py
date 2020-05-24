@@ -1,4 +1,4 @@
-import open3d
+import open3d as o3d
 import numpy as np
 from utils.pointcloud import make_point_cloud
 from functools import partial
@@ -10,7 +10,7 @@ import batch_find_neighbors
 
 def find_neighbors(query_points, support_points, radius, max_neighbor):
     pcd = make_point_cloud(support_points)
-    kdtree = open3d.KDTreeFlann(pcd)
+    kdtree = o3d.KDTreeFlann(pcd)
     neighbor_indices_list = []
     for i, point in enumerate(query_points):
         [k, idx, dis] = kdtree.search_radius_vector_3d(point, radius)
@@ -46,7 +46,7 @@ def batch_find_neighbors_py(query_points, support_points, query_batches, support
     start_ind = 0
     for length in support_batches:
         pcd = make_point_cloud(support_points[start_ind:start_ind + length])
-        kdtrees.append(open3d.KDTreeFlann(pcd))
+        kdtrees.append(o3d.KDTreeFlann(pcd))
         start_ind += length
     assert len(kdtrees) == num_batches
     # Search neigbors indices

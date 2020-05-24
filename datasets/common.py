@@ -1,4 +1,4 @@
-import open3d
+import open3d as o3d
 import numpy as np
 from datasets.dataloader import find_neighbors, grid_subsampling
 import torch

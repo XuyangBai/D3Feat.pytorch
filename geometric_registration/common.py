@@ -1,10 +1,10 @@
 import os
-import open3d
+import open3d as o3d
 import numpy as np
 
 
 def get_pcd(pcdpath, filename):
-    return open3d.read_point_cloud(os.path.join(pcdpath, filename + '.ply'))
+    return o3d.io.read_point_cloud(os.path.join(pcdpath, filename + '.ply'))
 
 
 def get_keypts(keyptspath, filename):

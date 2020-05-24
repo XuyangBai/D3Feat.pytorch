@@ -105,7 +105,7 @@ def batch_hard(dists, pids, margin=1, batch_precision_at_k=None):
     diff = furthest_positive - closest_negative
     accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
     if isinstance(margin, numbers.Real):
-        loss = torch.max(furthest_positive - 0.1, torch.zeros_like(diff)) + torch.max(1.8 - closest_negative, torch.zeros_like(diff))
+        loss = torch.max(furthest_positive - 0.1, torch.zeros_like(diff)) + torch.max(1.4 - closest_negative, torch.zeros_like(diff))
     elif margin == 'soft':
         loss = torch.nn.Softplus()(diff)
     elif margin == 'dynamic':
