@@ -198,7 +198,7 @@ if __name__ == '__main__':
     timestr = sys.argv[1]
     
     # dynamically load the model from snapshot
-    module_file_path = f'/home/xybai/KPConv_PyTorch/models/KPFCNN_desc.py'
+    module_file_path = f'/home/xybai/KPConv_PyTorch/models/D3Feat.py'
     module_name = 'models'
     module_spec = importlib.util.spec_from_file_location(module_name, module_file_path)
     module = importlib.util.module_from_spec(module_spec)

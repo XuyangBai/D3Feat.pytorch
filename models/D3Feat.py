@@ -1,7 +1,105 @@
 from models.network_blocks import get_block
-from models.KPCNN import KPCNN
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+
+class KPCNN(nn.Module):
+    def __init__(self, config):
+        super(KPCNN, self).__init__()
+        self.config = config
+        self.blocks = nn.ModuleDict()
+
+        # Feature Extraction Module
+        r = config.first_subsampling_dl * config.density_parameter
+        in_fdim = config.in_features_dim
+        out_fdim = config.first_features_dim
+        layer = 0
+        block_in_layer = 0
+        for block_i, block in enumerate(config.architecture):
+            # Detect upsampling block to stop
+            if 'upsample' in block:
+                break
+
+            is_strided = 'strided' in block
+            self.blocks[f'layer{layer}/{block}'] = get_block(block, config, in_fdim, out_fdim, radius=r, strided=is_strided)
+
+            # update feature dimension
+            in_fdim = out_fdim
+            block_in_layer += 1
+
+            if 'pool' in block or 'strided' in block:
+                # Update radius and feature dimension for next layer
+                out_fdim *= 2
+                r *= 2
+                layer += 1
+                block_in_layer = 0
+
+    def forward(self, inputs):
+        F = self.feature_extraction(inputs)
+        return F
+
+    def feature_extraction(self, inputs):
+        # Current radius of convolution and feature dimension
+        r = self.config.first_subsampling_dl * self.config.density_parameter
+        layer = 0
+        fdim = self.config.first_features_dim
+
+        # Input features
+        features = inputs['features']
+        F = []
+
+        # Loop over consecutive blocks
+        block_in_layer = 0
+        for block_i, block in enumerate(self.config.architecture):
+
+            # Detect change to next layer
+            if np.any([tmp in block for tmp in ['pool', 'strided', 'upsample', 'global']]):
+                # Save this layer features
+                F += [features]
+
+            # Detect upsampling block to stop
+            if 'upsample' in block:
+                break
+
+            # Get the function for this layer
+            block_ops = self.blocks[f'layer{layer}/{block}']
+
+            # Apply the layer function defining tf ops
+            if block == 'global_average':
+                stack_lengths = inputs['stack_lengths']
+                features = block_ops(stack_lengths, features)
+            else:
+                if block in ['unary', 'simple', 'resnet', 'resnetb', 'resnetb_deformable']:
+                    query_points = inputs['points'][layer]
+                    support_points = inputs['points'][layer]
+                    neighbors_indices = inputs['neighbors'][layer]
+                elif block in ['simple_strided', 'resnetb_strided', 'resnetb_deformable_strided']:
+                    query_points = inputs['points'][layer + 1]
+                    support_points = inputs['points'][layer]
+                    neighbors_indices = inputs['pools'][layer]
+                else:
+                    raise ValueError("Unknown block type.")
+                features = block_ops(query_points, support_points, neighbors_indices, features)
+
+            # Index of block in this layer
+            block_in_layer += 1
+
+            # Detect change to a subsampled layer
+            if 'pool' in block or 'strided' in block:
+                # Update radius and feature dimension for next layer
+                layer += 1
+                r *= 2
+                fdim *= 2
+                block_in_layer = 0
+
+            # Save feature vector after global pooling
+            if 'global' in block:
+                # Save this layer features
+                F += [features]
+        return F
+
 
 
 class KPFCNN(nn.Module):
@@ -41,20 +139,12 @@ class KPFCNN(nn.Module):
                 layer -= 1
                 block_in_layer = 0
 
-        # Segmentation Head
-        self.blocks['segmentation_head'] = nn.Sequential(
-            nn.Linear(out_fdim, config.first_features_dim),
-            nn.BatchNorm1d(config.first_features_dim, momentum=config.batch_norm_momentum, eps=1e-6),
-            nn.LeakyReLU(negative_slope=0.2),
-            # nn.Dropout(p=config.dropout),
-            nn.Linear(config.first_features_dim, config.num_classes)
-        )
         # print(list(self.named_parameters()))
 
     def forward(self, inputs):
         features = self.feature_extraction(inputs)
-        logits = self.segmentation_head(features)
-        return logits
+        features = F.normalize(features, p=2, dim=-1)
+        return features
 
     def feature_extraction(self, inputs):
         F = self.encoder.feature_extraction(inputs)
@@ -109,24 +199,3 @@ class KPFCNN(nn.Module):
                 features = torch.cat((features, F[layer]), dim=1)
 
         return features
-
-    def segmentation_head(self, features):
-        logits = self.blocks['segmentation_head'](features)
-        return logits
-
-
-if __name__ == '__main__':
-    from training_ShapeNetPart import ShapeNetPartConfig
-    from datasets.ShapeNet import ShapeNetDataset
-    from datasets.dataloader import get_dataloader
-
-    config = ShapeNetPartConfig()
-    datapath = "./data/shapenetcore_partanno_segmentation_benchmark_v0"
-    dset = ShapeNetDataset(root=datapath, config=config, first_subsampling_dl=0.01, classification=False)
-    dataloader = get_dataloader(dset, batch_size=1)
-    model = KPFCNN(config)
-
-    for iter, input in enumerate(dataloader):
-        output = model(input)
-        print(output.shape)
-        break

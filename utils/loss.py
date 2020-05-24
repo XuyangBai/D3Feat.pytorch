@@ -54,10 +54,11 @@ def cdist(a, b, metric='euclidean'):
             'The following metric is not implemented by `cdist` yet: {}'.format(metric))
 
 
-class BatchHardLoss(nn.Module):
-    def __init__(self, margin, metric, safe_radius=0.25):
-        super(BatchHardLoss, self).__init__()
-        self.margin = margin
+class ContrastiveLoss(nn.Module):
+    def __init__(self, pos_margin, neg_margin, metric, safe_radius=0.25):
+        super(ContrastiveLoss, self).__init__()
+        self.pos_margin = pos_margin
+        self.neg_margin = neg_margin
         self.metric = metric
         self.safe_radius = safe_radius
 
@@ -73,10 +74,10 @@ class BatchHardLoss(nn.Module):
         add_matrix = torch.zeros_like(dist)
         add_matrix[np.where(dist_keypts < self.safe_radius)] += 10
         dist = dist + add_matrix
-        return batch_hard(dist, pids, margin=self.margin)
+        return batch_hard(dist, pids, self.pos_margin, self.neg_margin)
 
 
-def batch_hard(dists, pids, margin=1, batch_precision_at_k=None):
+def batch_hard(dists, pids, pos_margin=0.1, neg_margin=1.4, batch_precision_at_k=None):
     """Computes the batch-hard loss from arxiv.org/abs/1703.07737.
 
     Args:
@@ -104,15 +105,7 @@ def batch_hard(dists, pids, margin=1, batch_precision_at_k=None):
     # closest_negative = torch.min(closest_negative_col, closest_negative_row)
     diff = furthest_positive - closest_negative
     accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
-    if isinstance(margin, numbers.Real):
-        loss = torch.max(furthest_positive - 0.1, torch.zeros_like(diff)) + torch.max(1.4 - closest_negative, torch.zeros_like(diff))
-    elif margin == 'soft':
-        loss = torch.nn.Softplus()(diff)
-    elif margin == 'dynamic':
-        margin = float(torch.diag(dists).mean())
-        loss = torch.max(diff + margin, torch.zeros_like(diff))
-    else:
-        raise NotImplementedError('The margin {} is not implemented in batch_hard'.format(margin))
+    loss = torch.max(furthest_positive - pos_margin, torch.zeros_like(diff)) + torch.max(neg_margin - closest_negative, torch.zeros_like(diff))
 
     average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
     

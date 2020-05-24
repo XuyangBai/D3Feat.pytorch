@@ -268,8 +268,9 @@ def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_thr
 
     return neighborhood_limits
 
-def get_dataloader(dataset, batch_size=2, num_workers=4, shuffle=True):
-    neighborhood_limits = calibrate_neighbors(dataset, dataset.config, collate_fn=collate_fn_descriptor)
+def get_dataloader(dataset, batch_size=2, num_workers=4, shuffle=True, neighborhood_limits=None):
+    if neighborhood_limits is None:
+        neighborhood_limits = calibrate_neighbors(dataset, dataset.config, collate_fn=collate_fn_descriptor)
     print("neighborhood:", neighborhood_limits)
     dataloader = torch.utils.data.DataLoader(
         dataset,
@@ -280,7 +281,7 @@ def get_dataloader(dataset, batch_size=2, num_workers=4, shuffle=True):
         collate_fn=partial(collate_fn_descriptor, config=dataset.config, neighborhood_limits=neighborhood_limits),
         drop_last=False
     )
-    return dataloader
+    return dataloader, neighborhood_limits
 
 
 if __name__ == '__main__':

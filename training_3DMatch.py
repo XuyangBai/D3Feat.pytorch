@@ -1,147 +1,127 @@
 import os
 import time
 import shutil
-from datasets.ThreeDMatch import ThreeDMatchDataset
-from utils.config import Config
-from trainer_desc import Trainer
-from models.KPFCNN_desc import KPFCNN
+import json 
+from config import get_config
+from easydict import EasyDict as edict
+from datasets.ThreeDMatch import ThreeDMatchDataset, ThreeDMatchTestset
+from trainer import Trainer
+from models.D3Feat import KPFCNN
 from datasets.dataloader import get_dataloader
-from utils.loss import BatchHardLoss
+from utils.loss import ContrastiveLoss
 from torch import optim
 from torch import nn
 import torch
 
 
-class ThreeDMatchConfig(Config):
-    # dataset
-    dataset = '3DMatch'
-    first_features_dim = 32
-    safe_radius = 0.1
-    first_subsampling_dl = 0.03
-    in_features_dim = 1
-    data_train_dir = "/ssd2/xuyang/3DMatch/"
-    data_test_dir = "/ssd2/xuyang/3DMatch/"
-    train_batch_size = 1
-    test_batch_size = 1
+if __name__ == '__main__':
+    config = get_config()
+    dconfig = vars(config)
+    for k in dconfig:
+        print(f"    {k}: {dconfig[k]}")
+    config = edict(dconfig)
+    os.makedirs(config.snapshot_dir, exist_ok=True)
+    os.makedirs(config.tboard_dir, exist_ok=True)
+    os.makedirs(config.save_dir, exist_ok=True)
+    json.dump(
+        config,
+        open(os.path.join(config.snapshot_dir, 'config.json'), 'w'),
+        indent=4,
+    )
+    if config.gpu_mode:
+        config.device = torch.device('cuda')
+    else:
+        config.device = torch.device('cpu')
+    
+    # create model 
+    config.architecture = [
+        'simple',
+        'resnetb',
+    ]
+    for i in range(config.num_layers-1):
+        config.architecture.append('resnetb_strided')
+        config.architecture.append('resnetb')
+    for i in range(config.num_layers-1):
+        config.architecture.append('nearest_upsample')
+        config.architecture.append('unary')
+    print("Network Architecture:\n", "".join([layer+'\n' for layer in config.architecture]))
 
-    # model
-    architecture = ['simple',
-                    'resnetb',
-                    'resnetb_strided',
-                    'resnetb',
-                    'resnetb_strided',
-                    'resnetb', # 'resnetb_deformable',
-                    'resnetb_strided', # 'resnetb_deformable_strided',
-                    'resnetb', # 'resnetb_deformable',
-                    'resnetb_strided', # 'resnetb_deformable_strided',
-                    'resnetb', # 'resnetb_deformable',
-                    'nearest_upsample',
-                    'unary',
-                    'nearest_upsample',
-                    'unary',
-                    'nearest_upsample',
-                    'unary',
-                    'nearest_upsample',
-                    'unary']
-    dropout = 0.5
-    resume = None
-    use_batch_norm = True
-    batch_norm_momentum = 0.02
-    # https://github.com/pytorch/examples/issues/289 pytorch bn momentum 0.02 == tensorflow bn momentum 0.98
-
-    # kernel point convolution
-    KP_influence = 'linear'
-    KP_extent = 1.0
-    convolution_mode = 'sum'
-
-    # training
-    max_epoch = 200
-    learning_rate = 1e-1
-    momentum = 0.98
-    exp_gamma = 0.1 ** (1 / 80)
-    exp_interval = 1
-
-
-class Args(object):
-    def __init__(self, config):
-        is_test = False
-        if is_test:
-            self.experiment_id = "KPConvNet" + time.strftime('%m%d%H%M') + 'Test'
-        else:
-            self.experiment_id = "KPConvNet" + time.strftime('%m%d%H%M')
-
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.verbose = True
-        self.config = config
-
-        # snapshot
-        self.snapshot_interval = 5
-        snapshot_root = f'snapshot/{config.dataset}_{self.experiment_id}'
-        tensorboard_root = f'tensorboard/{config.dataset}_{self.experiment_id}'
-        os.makedirs(snapshot_root, exist_ok=True)
-        os.makedirs(tensorboard_root, exist_ok=True)
-        shutil.copy2(os.path.join('.', 'training_3DMatch.py'), os.path.join(snapshot_root, 'train.py'))
-        shutil.copy2(os.path.join('.', 'trainer_desc.py'), os.path.join(snapshot_root, 'trainer.py'))
-        shutil.copy2(os.path.join('datasets', 'ThreeDMatch.py'), os.path.join(snapshot_root, 'dataset.py'))
-        shutil.copy2(os.path.join('datasets', 'dataloader.py'), os.path.join(snapshot_root, 'dataloader.py'))
-        shutil.copy2(os.path.join('utils', 'loss.py'), os.path.join(snapshot_root, 'loss.py'))
-        self.save_dir = os.path.join(snapshot_root, 'models/')
-        self.result_dir = os.path.join(snapshot_root, 'results/')
-        self.tboard_dir = tensorboard_root
-
-        # dataset & dataloader
-        self.train_set = ThreeDMatchDataset(root=config.data_train_dir,
-                                         split='train',
-                                         num_node=64,
-                                         config=config,
-                                         )
-        self.test_set = ThreeDMatchDataset(root=config.data_test_dir,
-                                        split='val',
-                                        num_node=64,
+    config.model = KPFCNN(config)
+    
+    # create optimizer 
+    if config.optimizer == 'SGD':
+        config.optimizer = optim.SGD(
+            config.model.parameters(), 
+            lr=config.lr,
+            momentum=config.momentum,
+            weight_decay=config.weight_decay,
+            )
+    elif config.optimizer == 'ADAM':
+        config.optimizer = optim.Adam(
+            config.model.parameters(), 
+            lr=config.lr,
+            betas=(0.9, 0.999),
+            # momentum=config.momentum,
+            weight_decay=config.weight_decay,
+        )
+    
+    config.scheduler = optim.lr_scheduler.ExponentialLR(
+        config.optimizer,
+        gamma=config.scheduler_gamma,
+    )
+    
+    # create dataset and dataloader
+    train_set = ThreeDMatchDataset(root=config.root,
+                                        split='train',
+                                        num_node=config.num_node,
                                         config=config,
                                         )
-        self.train_loader = get_dataloader(dataset=self.train_set,
-                                           batch_size=config.train_batch_size,
-                                           shuffle=True,
-                                           num_workers=config.train_batch_size,
-                                           )
-        self.test_loader = get_dataloader(dataset=self.test_set,
-                                          batch_size=config.test_batch_size,
-                                          shuffle=True,
-                                          num_workers=config.test_batch_size,
-                                          )
-        print("Training set size:", self.train_loader.dataset.__len__())
-        print("Test set size:", self.test_loader.dataset.__len__())
-
-        # model
-        self.model = KPFCNN(config)
-        self.resume = config.resume
-        # optimizer 
-        self.start_epoch = 0
-        self.epoch = config.max_epoch
-        self.optimizer = optim.SGD(self.model.parameters(), lr=config.learning_rate, momentum=config.momentum, weight_decay=1e-6)
-        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=config.exp_gamma)
-        self.scheduler_interval = config.exp_interval
-
-        # evaluate
-        self.evaluate_interval = 1
-        self.evaluate_metric = BatchHardLoss(margin=1.0, metric='euclidean', safe_radius=config.safe_radius)
-
-        self.check_args()
-
-    def check_args(self):
-        """checking arguments"""
-        if not os.path.exists(self.save_dir):
-            os.makedirs(self.save_dir)
-        if not os.path.exists(self.result_dir):
-            os.makedirs(self.result_dir)
-        if not os.path.exists(self.tboard_dir):
-            os.makedirs(self.tboard_dir)
-        return self
-
-
-if __name__ == '__main__':
-    config = ThreeDMatchConfig()
-    args = Args(config)
-    trainer = Trainer(args)
+    val_set = ThreeDMatchDataset(root=config.root,
+                                    split='val',
+                                    num_node=64,
+                                    config=config,
+                                    )
+    test_set = ThreeDMatchTestset(root=config.root,
+                                    config=config,
+                                    last_scene=True,
+                                    )
+    config.train_loader, neighborhood_limits = get_dataloader(dataset=train_set,
+                                        batch_size=config.batch_size,
+                                        shuffle=True,
+                                        num_workers=config.batch_size,
+                                        )
+    config.val_loader,_ = get_dataloader(dataset=val_set,
+                                        batch_size=config.batch_size,
+                                        shuffle=True,
+                                        num_workers=config.batch_size,
+                                        neighborhood_limits=neighborhood_limits
+                                        )
+    config.test_loader,_ = get_dataloader(dataset=test_set,
+                                        batch_size=config.batch_size,
+                                        shuffle=False,
+                                        num_workers=config.batch_size,
+                                        neighborhood_limits=neighborhood_limits
+                                        )
+    
+    # create evaluation
+    if config.desc_loss == 'contrastive':
+        desc_loss = ContrastiveLoss(
+            pos_margin=config.pos_margin,
+            neg_margin=config.neg_margin,
+            metric='euclidean', 
+            safe_radius=config.safe_radius
+            )
+    else:
+        pass 
+    
+    config.evaluation_metric = {
+        'desc_loss': desc_loss,
+        'det_loss': desc_loss,
+    }
+    config.metric_weight = {
+        'desc_loss': config.desc_loss_weight,
+        'det_loss': config.det_loss_weight,
+    }
+    
+    trainer = Trainer(config)
     trainer.train()

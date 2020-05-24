@@ -26,7 +26,7 @@ def bias_variable(size):
     return bias
 
 
-def leaky_relu_layer(negative_slope=0.2):
+def leaky_relu_layer(negative_slope=0.1):
     return nn.LeakyReLU(negative_slope=negative_slope)
 
 
@@ -92,7 +92,7 @@ class unary_block(nn.Module):
         self.in_fdim, self.out_fdim = in_fdim, out_fdim
         self.weight = weight_variable([in_fdim, out_fdim])
         if config.use_batch_norm:
-            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.momentum, eps=1e-6)
+            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.batch_norm_momentum, eps=1e-6)
         self.relu = leaky_relu_layer()
 
     def forward(self, query_points, support_points, neighbors_indices, features):
@@ -123,7 +123,7 @@ class simple_block(nn.Module):
         # kernel points weight
         self.weight = weight_variable([config.num_kernel_points, in_fdim, out_fdim])
         if config.use_batch_norm:
-            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.momentum, eps=1e-6)
+            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.batch_norm_momentum, eps=1e-6)
         self.relu = leaky_relu_layer()
 
     def forward(self, query_points, support_points, neighbors_indices, features):
@@ -166,7 +166,7 @@ class simple_deformable_block(nn.Module):
         # kernel points weight
         self.weight = weight_variable([config.num_kernel_points, in_fdim, out_fdim])
         if config.use_batch_norm:
-            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.momentum, eps=1e-6)
+            self.bn = nn.BatchNorm1d(out_fdim, momentum=config.batch_norm_momentum, eps=1e-6)
         self.relu = leaky_relu_layer()
 
         point_dim = 4 if self.config.modulated else 3

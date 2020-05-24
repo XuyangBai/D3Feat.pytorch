@@ -8,12 +8,11 @@ from utils.metrics import calculate_acc, calculate_iou
 
 class Trainer(object):
     def __init__(self, args):
-        self.config = args.config
+        self.config = args
         # parameters
-        self.start_epoch = args.start_epoch
-        self.epoch = args.epoch
+        self.start_epoch = 0
+        self.max_epoch = args.max_epoch
         self.save_dir = args.save_dir
-        self.result_dir = args.result_dir
         self.device = args.device
         self.verbose = args.verbose
         self.best_acc = 0
@@ -24,40 +23,36 @@ class Trainer(object):
         self.scheduler = args.scheduler
         self.scheduler_interval = args.scheduler_interval
         self.snapshot_interval = args.snapshot_interval
-        self.evaluate_interval = args.evaluate_interval
-        self.evaluate_metric = args.evaluate_metric
+        self.evaluation_metric = args.evaluation_metric
         self.writer = SummaryWriter(log_dir=args.tboard_dir)
         # self.writer = SummaryWriter(logdir=args.tboard_dir)
 
-        if args.resume != None:
-            self._load_pretrain(args.resume)
+        if args.pretrain != '':
+            self._load_pretrain(args.pretrain)
 
         self.train_loader = args.train_loader
+        self.val_loader = args.val_loader
         self.test_loader = args.test_loader
+        
 
     def train(self):
-        self.train_hist = {
-            'loss': [],
-            'accuracy': [],
-            'per_epoch_time': [],
-            'total_time': []
-        }
-        print('training start!!')
-        start_time = time.time()
 
         self.model.train()
         res = self.evaluate(self.start_epoch)
         for k,v in res.items():
             self.writer.add_scalar(f'val/{k}', v, 0)
-        for epoch in range(self.start_epoch, self.epoch):
+        for epoch in range(self.start_epoch, self.max_epoch):
             self.train_epoch(epoch)
 
-            if (epoch + 1) % self.evaluate_interval == 0 or epoch == 0:
+            if (epoch + 1) % 1 == 0:
                 res = self.evaluate(epoch + 1)
                 print(f'Evaluation: Epoch {epoch + 1}: Loss {res["loss"]}, Accuracy {res["accuracy"]}')
                 if res['loss'] < self.best_loss:
                     self.best_loss = res['loss']
                     self._snapshot(epoch + 1, 'best_loss')
+                if res['accuracy'] < self.best_acc:
+                    self.best_acc = res['accuracy']
+                    self._snapshot(epoch + 1, 'best_acc')
 
             for k,v in res.items():
                 self.writer.add_scalar(f'val/{k}', v, epoch + 1)
@@ -69,10 +64,7 @@ class Trainer(object):
                 self._snapshot(epoch + 1)
 
 
-                # finish all epoch
-        self.train_hist['total_time'].append(time.time() - start_time)
-        print("Avg one epoch time: %.2f, total %d epochs time: %.2f" % (np.mean(self.train_hist['per_epoch_time']),
-                                                                        self.epoch, self.train_hist['total_time'][0]))
+        # finish all epoch
         print("Training finish!... save training results")
 
     def train_epoch(self, epoch):
@@ -98,9 +90,8 @@ class Trainer(object):
             anc_features = features[inputs["corr"][:, 0].long()]
             pos_features = features[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
             
-            loss, acc, d_pos, d_neg, _, dist = self.evaluate_metric(anc_features, pos_features, inputs['dist_keypts'])
-            if iter % 100 == 0:
-                print(dist)
+            loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric["desc_loss"](anc_features, pos_features, inputs['dist_keypts'])
+
             d_pos = np.mean(d_pos)
             d_neg = np.mean(d_neg)
 
@@ -113,7 +104,7 @@ class Trainer(object):
             d_neg_meter.update(float(d_neg))
             acc_meter.update(float(acc))
 
-            if (iter + 1) % 1 == 0 and self.verbose:
+            if (iter + 1) % 100 == 0 and self.verbose:
                 curr_iter = num_iter * (epoch - 1) + iter
                 self.writer.add_scalar('train/Loss', float(loss), curr_iter)
                 self.writer.add_scalar('train/D_pos', float(d_pos), curr_iter)
@@ -128,19 +119,16 @@ class Trainer(object):
                       f"model time: {model_timer.avg:.2f}s")
         # finish one epoch
         epoch_time = model_timer.total_time + data_timer.total_time
-        self.train_hist['per_epoch_time'].append(epoch_time)
-        self.train_hist['loss'].append(loss_meter.avg)
-        self.train_hist['accuracy'].append(acc_meter.avg)
         print(f'Epoch {epoch+1}: Loss : {loss_meter.avg:.2f}, Accuracy: {acc_meter.avg:.2f}, D_pos: {d_pos_meter.avg:.2f}, D_neg: {d_neg_meter.avg:.2f}, time {epoch_time:.2f}s')
 
     def evaluate(self, epoch):
         self.model.eval()
-        fmr_total, fmr = self.evaluate_registration(epoch)
+        fmr = self.evaluate_registration(epoch)
         print(f"Eval epoch {epoch+1}, FMR: {fmr}")
         data_timer, model_timer = Timer(), Timer()
         loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
-        num_iter = int(len(self.test_loader.dataset) // self.train_loader.batch_size)
-        test_loader_iter = self.train_loader.__iter__()
+        num_iter = int(len(self.val_loader.dataset) // self.val_loader.batch_size)
+        test_loader_iter = self.val_loader.__iter__()
         for iter in range(num_iter):
             data_timer.tic()
             inputs = test_loader_iter.next()
@@ -156,7 +144,7 @@ class Trainer(object):
             anc_features = features[inputs["corr"][:, 0].long()]
             pos_features = features[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
             
-            loss, acc, d_pos, d_neg, _, dist = self.evaluate_metric(anc_features, pos_features, inputs['dist_keypts'])
+            loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric['desc_loss'](anc_features, pos_features, inputs['dist_keypts'])
             d_pos = np.mean(d_pos)
             d_neg = np.mean(d_neg)
 
@@ -166,7 +154,7 @@ class Trainer(object):
             d_neg_meter.update(float(d_neg))
             acc_meter.update(float(acc))
 
-            if (iter + 1) % 1 == 0 and self.verbose:
+            if (iter + 1) % 100 == 0 and self.verbose:
                 print(f"Eval epoch: {epoch+1} [{iter+1:4d}/{num_iter}] "
                       f"loss: {loss_meter.avg:.2f} "
                       f"acc:  {acc_meter.avg:.2f} "
@@ -182,8 +170,6 @@ class Trainer(object):
             'd_pos': d_pos_meter.avg,
             'd_neg': d_neg_meter.avg,
         }
-        if fmr_total is not None:
-            res['fmr_total'] = fmr_total
         return res
 
     def evaluate_registration(self, epoch):
@@ -191,15 +177,10 @@ class Trainer(object):
         import open3d as o3d
         from utils.pointcloud import make_point_cloud
         from datasets.ThreeDMatch import ThreeDMatchTestset
-        from datasets.dataloader import get_dataloader
         from geometric_registration.test_3DMatch import build_correspondence
         from geometric_registration.common import get_pcd, get_keypts, get_desc, loadlog
-        if epoch % 20 == 0:
-            dset = ThreeDMatchTestset(root='/ssd2/xuyang/3DMatch', config=self.config)
-        else:
-            dset = ThreeDMatchTestset(root='/ssd2/xuyang/3DMatch', config=self.config, last_scene=True)
-        dataloader = get_dataloader(dset, batch_size=1, shuffle=False)
-        dataloader_iter = dataloader.__iter__()
+        
+        dataloader_iter = self.test_loader.__iter__()
         save_path = f'D3Feat_temp'
         if not os.path.exists(save_path):
             os.mkdir(save_path)
@@ -215,7 +196,7 @@ class Trainer(object):
         
         # select only one scene for run-time evaluation.
         recall_list = []
-        for scene in dset.scene_list:
+        for scene in self.test_loader.dataset.scene_list:
             descriptor_path_scene = os.path.join(descriptor_path, scene)
             keypoint_path_scene = os.path.join(keypoint_path, scene)
             score_path_scene = os.path.join(score_path, scene)
@@ -225,7 +206,7 @@ class Trainer(object):
                 os.mkdir(keypoint_path_scene)
             if not os.path.exists(score_path_scene):
                 os.mkdir(score_path_scene)
-            pcdpath = f"/ssd2/xuyang/3DMatch/fragments/{scene}/"
+            pcdpath = f"{self.config.root}/fragments/{scene}/"
             num_frag = len([filename for filename in os.listdir(pcdpath) if filename.endswith('ply')])
             # generate descriptors for each fragment
             for ids in range(num_frag):
@@ -294,10 +275,7 @@ class Trainer(object):
                             pred_matches += 1
                         gt_matches += 1
             recall_list.append(pred_matches * 100.0 / gt_matches)
-        if epoch % 20 == 0:
-            return np.mean(recall_list), recall_list[-1]
-        else:
-            return None, recall_list[-1]
+        return recall_list[-1]
                 
     def _snapshot(self, epoch, name=None):
         state = {
