@@ -88,18 +88,18 @@ if __name__ == '__main__':
     config.train_loader, neighborhood_limits = get_dataloader(dataset=train_set,
                                         batch_size=config.batch_size,
                                         shuffle=True,
-                                        num_workers=config.batch_size,
+                                        num_workers=config.num_workers,
                                         )
     config.val_loader,_ = get_dataloader(dataset=val_set,
                                         batch_size=config.batch_size,
                                         shuffle=True,
-                                        num_workers=config.batch_size,
+                                        num_workers=config.num_workers,
                                         neighborhood_limits=neighborhood_limits
                                         )
     config.test_loader,_ = get_dataloader(dataset=test_set,
                                         batch_size=config.batch_size,
                                         shuffle=False,
-                                        num_workers=config.batch_size,
+                                        num_workers=config.num_workers,
                                         neighborhood_limits=neighborhood_limits
                                         )
     

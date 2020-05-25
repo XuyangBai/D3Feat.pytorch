@@ -16,7 +16,6 @@ class KPCNN(nn.Module):
         in_fdim = config.in_features_dim
         out_fdim = config.first_features_dim
         layer = 0
-        block_in_layer = 0
         for block_i, block in enumerate(config.architecture):
             # Detect upsampling block to stop
             if 'upsample' in block:
@@ -25,16 +24,14 @@ class KPCNN(nn.Module):
             is_strided = 'strided' in block
             self.blocks[f'layer{layer}/{block}'] = get_block(block, config, in_fdim, out_fdim, radius=r, strided=is_strided)
 
-            # update feature dimension
+            # Update dimension of input from output
             in_fdim = out_fdim
-            block_in_layer += 1
 
             if 'pool' in block or 'strided' in block:
                 # Update radius and feature dimension for next layer
                 out_fdim *= 2
                 r *= 2
                 layer += 1
-                block_in_layer = 0
 
     def forward(self, inputs):
         F = self.feature_extraction(inputs)
@@ -101,7 +98,6 @@ class KPCNN(nn.Module):
         return F
 
 
-
 class KPFCNN(nn.Module):
     def __init__(self, config):
         super(KPFCNN, self).__init__()
@@ -121,7 +117,6 @@ class KPFCNN(nn.Module):
         r = config.first_subsampling_dl * config.density_parameter * 2 ** layer
         in_fdim = config.first_features_dim * 2 ** layer
         out_fdim = in_fdim
-        block_in_layer = 0
         for block_i, block in enumerate(config.architecture[start_i:]):
 
             is_strided = 'strided' in block
@@ -129,7 +124,6 @@ class KPFCNN(nn.Module):
 
             # update feature dimension
             in_fdim = out_fdim
-            block_in_layer += 1
 
             # Detect change to a subsampled layer
             if 'upsample' in block:
@@ -137,12 +131,12 @@ class KPFCNN(nn.Module):
                 out_fdim = out_fdim // 2
                 r *= 0.5
                 layer -= 1
-                block_in_layer = 0
 
         # print(list(self.named_parameters()))
 
     def forward(self, inputs):
         features = self.feature_extraction(inputs)
+        # scores = self.detection_scores(inputs, features)
         features = F.normalize(features, p=2, dim=-1)
         return features
 
@@ -199,3 +193,5 @@ class KPFCNN(nn.Module):
                 features = torch.cat((features, F[layer]), dim=1)
 
         return features
+
+    # def detection_scores(self, inputs, features):

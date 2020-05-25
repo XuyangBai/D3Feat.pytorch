@@ -239,12 +239,35 @@ def get_dataloader(dataset, batch_size=2, num_workers=4, shuffle=True, neighborh
 
 
 if __name__ == '__main__':
-    from training_3DMatch import ThreeDMatchConfig
     from datasets.ThreeDMatch import  ThreeDMatchDataset
-    config = ThreeDMatchConfig()
-    dset = ThreeDMatchDataset(root='/home/xybai/KPConv/data/3DMatch', split='val', config=config)
-    dataloader = get_dataloader(dset, batch_size=1, num_workers=1)
+    from easydict import EasyDict as edict
+    import json
+    chosen_snap = 'D3Feat05251126'
+    config_path = f'snapshot/{chosen_snap}/config.json'
+    config = json.load(open(config_path, 'r'))
+    config = edict(config)
+    config.architecture = [
+        'simple',
+        'resnetb',
+    ]
+    for i in range(config.num_layers-1):
+        config.architecture.append('resnetb_strided')
+        config.architecture.append('resnetb')
+    for i in range(config.num_layers-1):
+        config.architecture.append('nearest_upsample')
+        config.architecture.append('unary')
+    dset = ThreeDMatchDataset(root='/ssd2/xuyang/3DMatch', split='train', config=config)
+
+    dataloader, _ = get_dataloader(dset, batch_size=1, num_workers=10)
+    import pdb
+    pdb.set_trace()
+    import time
+    s_time = time.time()
     for iter, inputs in enumerate(dataloader):
         print(iter)
-        import pdb
-        pdb.set_trace()
+        if iter == 1000:
+            break
+    e_time = time.time()
+    print(f"{e_time - s_time:.2f}s")
+    # 353s for 1000 iterations for 1 works
+    # 73s for 1000 iterations for 10 works

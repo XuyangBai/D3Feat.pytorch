@@ -1,6 +1,7 @@
 import numpy as np
 from kernels.kernel_points import load_kernels as create_kernel_points
 import torch
+from torch import nn
 
 
 def unary_convolution(features,
@@ -147,9 +148,8 @@ def KPConv_ops(query_points,
 
     # In case of closest mode, only the closest KP can influence each point
     if aggregation_mode == 'closest':
-        pass
-    #     neighbors_1nn = tf.argmin(sq_distances, axis=2, output_type=tf.int32)
-    #     all_weights *= tf.one_hot(neighbors_1nn, n_kp, axis=1, dtype=tf.float32)
+        neighbors_1nn = torch.argmin(sq_distances, dim=2)
+        all_weights *= torch.transpose(nn.functional.one_hot(neighbors_1nn, n_kp), 1, 2)
 
     elif aggregation_mode != 'sum':
         raise ValueError("Unknown convolution mode. Should be 'closest' or 'sum'")
@@ -157,7 +157,9 @@ def KPConv_ops(query_points,
     features = torch.cat([features, torch.zeros_like(features[:1, :])], dim=0)
 
     # Get the features of each neighborhood [n_points, n_neighbors, in_fdim]
-    neighborhood_features = features[neighbors_indices, :]
+    # neighborhood_features = features[neighbors_indices, :]
+    from models.network_blocks import gather
+    neighborhood_features = gather(features, neighbors_indices)
 
     # Apply distance weights [n_points, n_kpoints, in_fdim]
     weighted_features = torch.matmul(all_weights, neighborhood_features)

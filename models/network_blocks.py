@@ -47,6 +47,39 @@ def ind_max_pool(features, inds):
     # Pool the maximum
     return torch.max(pool_features, dim=1)[0]
 
+def gather(x, idx, method=2):
+    """
+    implementation of a custom gather operation for faster backwards.
+    :param x: input with shape [N, D_1, ... D_d]
+    :param idx: indexing with shape [n_1, ..., n_m]
+    :param method: Choice of the method
+    :return: x[idx] with shape [n_1, ..., n_m, D_1, ... D_d]
+    """
+
+    if method == 0:
+        return x[idx]
+    elif method == 1:
+        x = x.unsqueeze(1)
+        x = x.expand((-1, idx.shape[-1], -1))
+        idx = idx.unsqueeze(2)
+        idx = idx.expand((-1, -1, x.shape[-1]))
+        return x.gather(0, idx)
+    elif method == 2:
+        for i, ni in enumerate(idx.size()[1:]):
+            x = x.unsqueeze(i+1)
+            new_s = list(x.size())
+            new_s[i+1] = ni
+            x = x.expand(new_s)
+        n = len(idx.size())
+        for i, di in enumerate(x.size()[n:]):
+            idx = idx.unsqueeze(i+n)
+            new_s = list(idx.size())
+            new_s[i+n] = di
+            idx = idx.expand(new_s)
+        return x.gather(0, idx)
+    else:
+        raise ValueError('Unkown method')
+
 
 def closest_pool(features, upsample_indices):
     """
@@ -60,7 +93,8 @@ def closest_pool(features, upsample_indices):
     features = torch.cat([features, torch.zeros_like(features[:1, :])], dim=0)
 
     # Get features for each pooling cell [n2, d]
-    pool_features = features[upsample_indices[:, 0], :]
+    # pool_features = features[upsample_indices[:, 0], :]
+    pool_features = gather(features, upsample_indices[:, 0], method=2)
 
     return pool_features
 
@@ -118,7 +152,7 @@ class simple_block(nn.Module):
         self.config = config
         self.radius = radius
         self.strided = strided
-        self.in_fdim, self.out_fdim = in_fdim, out_fdim
+        self.in_fdim, self.out_fdim = in_fdim, out_fdim // 2
 
         # kernel points weight
         self.weight = weight_variable([config.num_kernel_points, in_fdim, out_fdim])
@@ -258,10 +292,10 @@ class resnetb_block(nn.Module):
         self.radius = radius
         self.strided = strided
         self.in_fdim, self.out_fdim = in_fdim, out_fdim
-        self.conv1 = unary_block(config, in_fdim, out_fdim // 2)
-        self.conv2 = simple_block(config, out_fdim // 2, out_fdim // 2, radius, strided=strided)
+        self.conv1 = unary_block(config, in_fdim, out_fdim // 4)
+        self.conv2 = simple_block(config, out_fdim // 4, out_fdim // 4, radius, strided=strided)
         # TODO: origin implementation this last conv change feature dim to out_fdim * 2
-        self.conv3 = unary_block(config, out_fdim // 2, out_fdim)
+        self.conv3 = unary_block(config, out_fdim // 4, out_fdim)
         self.shortcut = unary_block(config, in_fdim, out_fdim)
         self.relu = leaky_relu_layer()
 
@@ -295,10 +329,10 @@ class resnetb_deformable_block(nn.Module):
         self.radius = radius
         self.strided = strided
         self.in_fdim, self.out_fdim = in_fdim, out_fdim
-        self.conv1 = unary_block(config, in_fdim, out_fdim // 2)
-        self.conv2 = simple_deformable_block(config, out_fdim // 2, out_fdim // 2, radius, strided=strided)
+        self.conv1 = unary_block(config, in_fdim, out_fdim // 4)
+        self.conv2 = simple_deformable_block(config, out_fdim // 4, out_fdim // 4, radius, strided=strided)
         # TODO: origin implementation this last conv change feature dim to out_fdim * 2
-        self.conv3 = unary_block(config, out_fdim // 2, out_fdim)
+        self.conv3 = unary_block(config, out_fdim // 4, out_fdim)
         self.shortcut = unary_block(config, in_fdim, out_fdim)
         self.relu = leaky_relu_layer()
 
