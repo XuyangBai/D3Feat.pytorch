@@ -4,114 +4,68 @@ from utils.pointcloud import make_point_cloud
 from functools import partial
 import torch
 import cpp_wrappers.cpp_subsampling.grid_subsampling as cpp_subsampling
+import cpp_wrappers.cpp_neighbors.radius_neighbors as cpp_neighbors
 from utils.timer import Timer
 import batch_find_neighbors
 
 
-def find_neighbors(query_points, support_points, radius, max_neighbor):
-    pcd = make_point_cloud(support_points)
-    kdtree = o3d.KDTreeFlann(pcd)
-    neighbor_indices_list = []
-    for i, point in enumerate(query_points):
-        [k, idx, dis] = kdtree.search_radius_vector_3d(point, radius)
-        if k > max_neighbor:
-            idx = np.random.choice(idx, max_neighbor, replace=False)
-        else:
-            # if not enough neighbor points, then add the dustbin point.
-            idx = list(idx) + [len(support_points)] * (max_neighbor - k)
-        neighbor_indices_list.append([idx])
-    neighbors = np.concatenate(neighbor_indices_list, axis=0)
-    return torch.from_numpy(neighbors)
-
-def batch_find_neighbors_wrapper(query_points, support_points, query_batches, support_batches, radius, max_neighbors):
-    if True:
-        cpp = batch_find_neighbors_cpp(query_points, support_points, query_batches, support_batches, radius, max_neighbors)
-        cpp = cpp.reshape([query_points.shape[0], -1])
-        cpp = cpp[:, :max_neighbors]
-        return cpp
-    else:
-        py = batch_find_neighbors_py(query_points, support_points, query_batches, support_batches, radius, max_neighbors)
-        py = py[:, :max_neighbors]
-        return py
-
-def batch_find_neighbors_cpp(query_points, support_points, query_batches, support_batches, radius, max_neighbors):
-    outputs = batch_find_neighbors.compute(query_points, support_points, query_batches, support_batches, radius)
-    outputs = outputs.long()
-    return outputs
-
-def batch_find_neighbors_py(query_points, support_points, query_batches, support_batches, radius, max_neighbors):
-    num_batches = len(support_batches)
-    # Create kdtree for each pcd in support_points
-    kdtrees = []
-    start_ind = 0
-    for length in support_batches:
-        pcd = make_point_cloud(support_points[start_ind:start_ind + length])
-        kdtrees.append(o3d.KDTreeFlann(pcd))
-        start_ind += length
-    assert len(kdtrees) == num_batches
-    # Search neigbors indices
-    neighbors_indices_list = []
-    start_ind = 0
-    support_start_ind = 0
-    dustbin_ind = len(support_points)
-    for i_batch, length in enumerate(query_batches):
-        for i_pts, pts in enumerate(query_points[start_ind:start_ind + length]):
-            [k, idx, dis] = kdtrees[i_batch].search_radius_vector_3d(pts, radius)
-            if k > max_neighbors:
-                # idx = np.random.choice(idx, max_neighbors, replace=False)
-                # If i use random, the closest_pool will not work as expected.
-                idx = list(idx[0:max_neighbors])
-            else:
-                # if not enough neighbor points, then add dustbin index. Careful !!!
-                idx = list(idx) + [dustbin_ind - support_start_ind] * (max_neighbors - k)
-            idx = np.array(idx) + support_start_ind
-            neighbors_indices_list.append(idx)
-        # finish one query_points, update the start_ind
-        start_ind += int(query_batches[i_batch])
-        support_start_ind += int(support_batches[i_batch])
-    return torch.from_numpy(np.array(neighbors_indices_list)).long()
-
-def grid_subsampling(points, features=None, labels=None, sampleDl=0.1, verbose=0):
+def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=None, sampleDl=0.1, max_p=0, verbose=0, random_grid_orient=True):
     """
-    CPP wrapper for a grid subsampling (method = barycenter for points and features
-    :param points: (N, 3) matrix of input points
-    :param features: optional (N, d) matrix of features (floating number)
-    :param labels: optional (N,) matrix of integer labels
-    :param sampleDl: parameter defining the size of grid voxels
-    :param verbose: 1 to display
-    :return: subsampled points, with features and/or labels depending of the input
+    CPP wrapper for a grid subsampling (method = barycenter for points and features)
     """
-
     if (features is None) and (labels is None):
-        return cpp_subsampling.compute(points, sampleDl=sampleDl, verbose=verbose)
+        s_points, s_len = cpp_subsampling.subsample_batch(points,
+                                                          batches_len,
+                                                          sampleDl=sampleDl,
+                                                          max_p=max_p,
+                                                          verbose=verbose)
+        return torch.from_numpy(s_points), torch.from_numpy(s_len)
+
     elif (labels is None):
-        return cpp_subsampling.compute(points, features=features, sampleDl=sampleDl, verbose=verbose)
+        s_points, s_len, s_features = cpp_subsampling.subsample_batch(points,
+                                                                      batches_len,
+                                                                      features=features,
+                                                                      sampleDl=sampleDl,
+                                                                      max_p=max_p,
+                                                                      verbose=verbose)
+        return torch.from_numpy(s_points), torch.from_numpy(s_len), torch.from_numpy(s_features)
+
     elif (features is None):
-        return cpp_subsampling.compute(points, classes=labels, sampleDl=sampleDl, verbose=verbose)
+        s_points, s_len, s_labels = cpp_subsampling.subsample_batch(points,
+                                                                    batches_len,
+                                                                    classes=labels,
+                                                                    sampleDl=sampleDl,
+                                                                    max_p=max_p,
+                                                                    verbose=verbose)
+        return torch.from_numpy(s_points), torch.from_numpy(s_len), torch.from_numpy(s_labels)
+
     else:
-        return cpp_subsampling.compute(points, features=features, classes=labels, sampleDl=sampleDl, verbose=verbose)
+        s_points, s_len, s_features, s_labels = cpp_subsampling.subsample_batch(points,
+                                                                              batches_len,
+                                                                              features=features,
+                                                                              classes=labels,
+                                                                              sampleDl=sampleDl,
+                                                                              max_p=max_p,
+                                                                              verbose=verbose)
+        return torch.from_numpy(s_points), torch.from_numpy(s_len), torch.from_numpy(s_features), torch.from_numpy(s_labels)
 
-def batch_grid_subsampling(points, batches_len, sampleDl=0.1):
+def batch_neighbors_kpconv(queries, supports, q_batches, s_batches, radius, max_neighbors):
     """
-    CPP wrapper for a batch grid subsampling (method = barycenter for points and features
-    :param points: (N, 3) matrix of input points
-    :param batches_len: lengths of batched input points
-    :param sampleDl: parameter defining the size of grid voxels
-    :return:
+    Computes neighbors for a batch of queries and supports
+    :param queries: (N1, 3) the query points
+    :param supports: (N2, 3) the support points
+    :param q_batches: (B) the list of lengths of batch elements in queries
+    :param s_batches: (B)the list of lengths of batch elements in supports
+    :param radius: float32
+    :return: neighbors indices
     """
-    subsampled_points_list = []
-    subsampled_batches_len_list = []
-    start_ind = 0
-    for length in batches_len:
-        b_origin_points = points[start_ind:start_ind + length]
-        b_subsampled_points = grid_subsampling(b_origin_points, sampleDl=sampleDl)
-        start_ind += length
-        subsampled_points_list.append(b_subsampled_points)
-        subsampled_batches_len_list.append(len(b_subsampled_points))
-    subsampled_points = torch.from_numpy(np.concatenate(subsampled_points_list, axis=0))
-    subsampled_batches_len = torch.from_numpy(np.array(subsampled_batches_len_list)).int()
-    return subsampled_points, subsampled_batches_len
 
+    neighbors = cpp_neighbors.batch_query(queries, supports, q_batches, s_batches, radius=radius)
+    if max_neighbors > 0:
+        return torch.from_numpy(neighbors[:, :max_neighbors])
+    else:
+        return torch.from_numpy(neighbors)
+    
 def collate_fn_descriptor(list_data, config, neighborhood_limits):
     batched_points_list = []
     batched_features_list = []
@@ -165,7 +119,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
                 r = r_normal * config.density_parameter / (config.KP_extent * 2.5)
             else:
                 r = r_normal
-            conv_i = batch_find_neighbors_wrapper(batched_points, batched_points, batched_lengths, batched_lengths, r, neighborhood_limits[layer])
+            conv_i = batch_neighbors_kpconv(batched_points, batched_points, batched_lengths, batched_lengths, r, neighborhood_limits[layer])
 
         else:
             # This layer only perform pooling, no neighbors required
@@ -181,7 +135,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
             dl = 2 * r_normal / (config.KP_extent * 2.5)
 
             # Subsampled points
-            pool_p, pool_b = batch_grid_subsampling(batched_points, batched_lengths, sampleDl=dl)
+            pool_p, pool_b = batch_grid_subsampling_kpconv(batched_points, batched_lengths, sampleDl=dl)
 
             # Radius of pooled neighbors
             if 'deformable' in block:
@@ -190,10 +144,10 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
                 r = r_normal
 
             # Subsample indices
-            pool_i = batch_find_neighbors_wrapper(pool_p, batched_points, pool_b, batched_lengths, r, neighborhood_limits[layer])
-
+            pool_i = batch_neighbors_kpconv(pool_p, batched_points, pool_b, batched_lengths, r, neighborhood_limits[layer])
+            
             # Upsample indices (with the radius of the next layer to keep wanted density)
-            up_i = batch_find_neighbors_wrapper(batched_points, pool_p, batched_lengths, pool_b, 2 * r, neighborhood_limits[layer])
+            up_i = batch_neighbors_kpconv(batched_points, pool_p, batched_lengths, pool_b, 2 * r, neighborhood_limits[layer])
 
         else:
             # No pooling in the end of this layer, no pooling indices required

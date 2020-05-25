@@ -1,10 +1,11 @@
+
 #include "neighbors.h"
 
 
 void brute_neighbors(vector<PointXYZ>& queries, vector<PointXYZ>& supports, vector<int>& neighbors_indices, float radius, int verbose)
 {
 
-	// Initiate variables
+	// Initialize variables
 	// ******************
 
 	// square radius
@@ -60,7 +61,7 @@ void ordered_neighbors(vector<PointXYZ>& queries,
                         float radius)
 {
 
-	// Initiate variables
+	// Initialize variables
 	// ******************
 
 	// square radius
@@ -129,7 +130,7 @@ void batch_ordered_neighbors(vector<PointXYZ>& queries,
                                 float radius)
 {
 
-	// Initiate variables
+	// Initialize variables
 	// ******************
 
 	// square radius
@@ -215,7 +216,7 @@ void batch_nanoflann_neighbors(vector<PointXYZ>& queries,
                                 float radius)
 {
 
-	// Initiate variables
+	// Initialize variables
 	// ******************
 
 	// indices

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import numbers
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def all_diffs(a, b):
@@ -55,7 +56,7 @@ def cdist(a, b, metric='euclidean'):
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, pos_margin, neg_margin, metric, safe_radius=0.25):
+    def __init__(self, pos_margin=0.1, neg_margin=1.4, metric='euclidean', safe_radius=0.25):
         super(ContrastiveLoss, self).__init__()
         self.pos_margin = pos_margin
         self.neg_margin = neg_margin
@@ -63,52 +64,93 @@ class ContrastiveLoss(nn.Module):
         self.safe_radius = safe_radius
 
     def forward(self, anchor, positive, dist_keypts):
-        pids = torch.FloatTensor(np.arange(len(anchor)))
-        if torch.cuda.is_available():
-            pids = pids.cuda()
-        # if self.metric == 'euclidean':
-            # distance = torch.sqrt(2 - 2 * torch.matmul(anchor, positive.transpose(0, 1)))
-            # return batch_hard(distance, pids, margin=self.margin)
+        pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
         dist = cdist(anchor, positive, metric=self.metric)
         dist_keypts = np.eye(dist_keypts.shape[0]) * 10 + dist_keypts.detach().cpu().numpy()
         add_matrix = torch.zeros_like(dist)
         add_matrix[np.where(dist_keypts < self.safe_radius)] += 10
         dist = dist + add_matrix
-        return batch_hard(dist, pids, self.pos_margin, self.neg_margin)
+        return self.calculate_loss(dist, pids)
 
 
-def batch_hard(dists, pids, pos_margin=0.1, neg_margin=1.4, batch_precision_at_k=None):
-    """Computes the batch-hard loss from arxiv.org/abs/1703.07737.
+    def calculate_loss(self, dists, pids):
+        """Computes the batch-hard loss from arxiv.org/abs/1703.07737.
 
-    Args:
-        dists (2D tensor): A square all-to-all distance matrix as given by cdist.
-        pids (1D tensor): The identities of the entries in `batch`, shape (B,).
-            This can be of any type that can be compared, thus also a string.
-        margin: The value of the margin if a number, alternatively the string
-            'soft' for using the soft-margin formulation, or `None` for not
-            using a margin at all.
+        Args:
+            dists (2D tensor): A square all-to-all distance matrix as given by cdist.
+            pids (1D tensor): The identities of the entries in `batch`, shape (B,).
+                This can be of any type that can be compared, thus also a string.
+            margin: The value of the margin if a number, alternatively the string
+                'soft' for using the soft-margin formulation, or `None` for not
+                using a margin at all.
 
-    Returns:
-        A 1D tensor of shape (B,) containing the loss value for each sample.
-    """
-    # generate the mask that mask[i, j] reprensent whether i th and j th are from the same identity.
-    # torch.equal is to check whether two tensors have the same size and elements
-    # torch.eq is to computes element-wise equality
-    same_identity_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
-    # negative_mask = np.logical_not(same_identity_mask)
+        Returns:
+            A 1D tensor of shape (B,) containing the loss value for each sample.
+        """
+        # generate the mask that mask[i, j] reprensent whether i th and j th are from the same identity.
+        # torch.equal is to check whether two tensors have the same size and elements
+        # torch.eq is to computes element-wise equality
+        same_identity_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
+        # negative_mask = np.logical_not(same_identity_mask)
 
-    # dists * same_identity_mask get the distance of each valid anchor-positive pair.
-    furthest_positive, _ = torch.max(dists * same_identity_mask.float(), dim=1)
-    # here we use "dists +  10000*same_identity_mask" to avoid the anchor-positive pair been selected.
-    closest_negative, _ = torch.min(dists + 1e5 * same_identity_mask.float(), dim=1)
-    # closest_negative_row, _ = torch.min(dists + 1e5 * same_identity_mask.float(), dim=0)
-    # closest_negative = torch.min(closest_negative_col, closest_negative_row)
-    diff = furthest_positive - closest_negative
-    accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
-    loss = torch.max(furthest_positive - pos_margin, torch.zeros_like(diff)) + torch.max(neg_margin - closest_negative, torch.zeros_like(diff))
+        # dists * same_identity_mask get the distance of each valid anchor-positive pair.
+        furthest_positive, _ = torch.max(dists * same_identity_mask.float(), dim=1)
+        # here we use "dists +  10000*same_identity_mask" to avoid the anchor-positive pair been selected.
+        closest_negative, _ = torch.min(dists + 1e5 * same_identity_mask.float(), dim=1)
+        # closest_negative_row, _ = torch.min(dists + 1e5 * same_identity_mask.float(), dim=0)
+        # closest_negative = torch.min(closest_negative_col, closest_negative_row)
+        diff = furthest_positive - closest_negative
+        accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
+        loss = torch.max(furthest_positive - self.pos_margin, torch.zeros_like(diff)) + torch.max(self.neg_margin - closest_negative, torch.zeros_like(diff))
 
-    average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
-    
-    if batch_precision_at_k is None:
-        # return torch.mean(loss), accuracy, diff, 0, dists
+        average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
+        
+        return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
+
+
+class CircleLoss(nn.Module):
+    def __init__(self, pos_margin=0.1, neg_margin=1.4, log_scale=10, metric='euclidean', safe_radius=0.10):
+        super(CircleLoss, self).__init__()
+        self.log_scale = log_scale
+        self.metric = metric
+        self.safe_radius = safe_radius
+        self.pos_margin = pos_margin
+        self.neg_margin = neg_margin
+
+
+    def forward(self, anchor, positive, dist_keypts):
+        pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
+        dists = cdist(anchor, positive, metric=self.metric)
+        # add 10 to false negative
+        dist_keypts = np.eye(dist_keypts.shape[0]) * 10 + dist_keypts.detach().cpu().numpy()
+        add_matrix = torch.zeros_like(dists)
+        add_matrix[np.where(dist_keypts < self.safe_radius)] += 10
+        dists = dists + add_matrix
+
+        pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
+        neg_mask = torch.logical_not(pos_mask)
+
+        # dists * pos_mask get the distance of each valid anchor-positive pair.
+        furthest_positive, _ = torch.max(dists * pos_mask.float(), dim=1)
+        # here we use "dists +  10000*pos_mask" to avoid the anchor-positive pair been selected.
+        closest_negative, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=1)
+        # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
+        # closest_negative = torch.min(closest_negative_col, closest_negative_row)
+        average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
+        diff = furthest_positive - closest_negative
+        accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
+
+        pos = dists - 1e5 * neg_mask.float()
+        pos_weight = (pos - self.pos_margin).detach()
+        pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
+        lse_positive = torch.logsumexp(self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
+
+        
+        neg = dists + 1e5 * pos_mask.float()
+        neg_weight =  (self.neg_margin - neg).detach()
+        neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
+        lse_negative = torch.logsumexp(self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-1)
+
+        loss = F.softplus(lse_positive + lse_negative) / self.log_scale
+
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists

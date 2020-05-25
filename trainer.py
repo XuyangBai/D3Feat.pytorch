@@ -38,9 +38,9 @@ class Trainer(object):
     def train(self):
 
         self.model.train()
-        res = self.evaluate(self.start_epoch)
-        for k,v in res.items():
-            self.writer.add_scalar(f'val/{k}', v, 0)
+        # res = self.evaluate(self.start_epoch)
+        # for k,v in res.items():
+            # self.writer.add_scalar(f'val/{k}', v, 0)
         for epoch in range(self.start_epoch, self.max_epoch):
             self.train_epoch(epoch)
 

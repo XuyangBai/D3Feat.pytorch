@@ -79,8 +79,6 @@ public:
 	}
 };
 
-
-
 void grid_subsampling(vector<PointXYZ>& original_points,
                       vector<PointXYZ>& subsampled_points,
                       vector<float>& original_features,
@@ -89,4 +87,15 @@ void grid_subsampling(vector<PointXYZ>& original_points,
                       vector<int>& subsampled_classes,
                       float sampleDl,
                       int verbose);
+
+void batch_grid_subsampling(vector<PointXYZ>& original_points,
+                            vector<PointXYZ>& subsampled_points,
+                            vector<float>& original_features,
+                            vector<float>& subsampled_features,
+                            vector<int>& original_classes,
+                            vector<int>& subsampled_classes,
+                            vector<int>& original_batches,
+                            vector<int>& subsampled_batches,
+                            float sampleDl,
+                            int max_p);
 

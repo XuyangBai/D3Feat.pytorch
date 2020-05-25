@@ -43,9 +43,10 @@ net_arg.add_argument('--deformable', type=str2bool, default=False)
  
 # Loss configurations
 loss_arg = add_argument_group('Loss')
-loss_arg.add_argument('--desc_loss', type=str, default='contrastive', choices=['contrastive', 'circle'])
+loss_arg.add_argument('--desc_loss', type=str, default='circle', choices=['contrastive', 'circle'])
 loss_arg.add_argument('--pos_margin', type=float, default=0.1)
 loss_arg.add_argument('--neg_margin', type=float, default=1.5)
+loss_arg.add_argument('--log_scale', type=float, default=25)
 loss_arg.add_argument('--safe_radius', type=float, default=0.1)
 loss_arg.add_argument('--det_loss', type=str, default='score')
 loss_arg.add_argument('--desc_loss_weight', type=float, default=1.0)
@@ -66,8 +67,8 @@ opt_arg.add_argument('--scheduler_interval', type=int, default=1)
 
 # Dataset and dataloader configurations
 data_arg = add_argument_group('Data')
-data_arg.add_argument('--root', type=str, default='/home/xybai/KPConv/data/3DMatch')
-data_arg.add_argument('--num_node', type=int, default=256)
+data_arg.add_argument('--root', type=str, default='/ssd2/xuyang/3DMatch/')
+data_arg.add_argument('--num_node', type=int, default=64)
 data_arg.add_argument('--downsample', type=float, default=0.03)
 data_arg.add_argument('--augment_axis', type=int, default=3)
 data_arg.add_argument('--augment_rotation', type=float, default=1.0, help='rotation angle = num * 2pi') 

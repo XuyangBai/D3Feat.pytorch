@@ -26,7 +26,7 @@
 
 PointXYZ max_point(std::vector<PointXYZ> points)
 {
-	// Initiate limits
+	// Initialize limits
 	PointXYZ maxP(points[0]);
 
 	// Loop over all points
@@ -47,7 +47,7 @@ PointXYZ max_point(std::vector<PointXYZ> points)
 
 PointXYZ min_point(std::vector<PointXYZ> points)
 {
-	// Initiate limits
+	// Initialize limits
 	PointXYZ minP(points[0]);
 
 	// Loop over all points

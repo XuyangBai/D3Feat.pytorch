@@ -8,7 +8,7 @@ from datasets.ThreeDMatch import ThreeDMatchDataset, ThreeDMatchTestset
 from trainer import Trainer
 from models.D3Feat import KPFCNN
 from datasets.dataloader import get_dataloader
-from utils.loss import ContrastiveLoss
+from utils.loss import ContrastiveLoss, CircleLoss
 from torch import optim
 from torch import nn
 import torch
@@ -112,7 +112,13 @@ if __name__ == '__main__':
             safe_radius=config.safe_radius
             )
     else:
-        pass 
+        desc_loss = CircleLoss(
+            pos_margin=config.pos_margin,
+            neg_margin=config.neg_margin,
+            log_scale=config.log_scale,
+            metric='euclidean', 
+            safe_radius=config.safe_radius
+        ) 
     
     config.evaluation_metric = {
         'desc_loss': desc_loss,
