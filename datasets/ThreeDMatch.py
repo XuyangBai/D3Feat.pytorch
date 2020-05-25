@@ -7,7 +7,6 @@ import pickle
 import random
 import open3d as o3d
 from utils.pointcloud import make_point_cloud
-from datasets.common import grid_subsampling
 import torch.utils.data as data
 from scipy.spatial.distance import cdist
 
