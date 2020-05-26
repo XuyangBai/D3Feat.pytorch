@@ -23,6 +23,11 @@ if __name__ == '__main__':
     os.makedirs(config.snapshot_dir, exist_ok=True)
     os.makedirs(config.tboard_dir, exist_ok=True)
     os.makedirs(config.save_dir, exist_ok=True)
+    shutil.copy2(os.path.join('.', 'training_3DMatch.py'), os.path.join(config.snapshot_dir, 'train.py'))
+    shutil.copy2(os.path.join('.', 'trainer.py'), os.path.join(config.snapshot_dir, 'trainer.py'))
+    shutil.copy2(os.path.join('models', 'D3Feat.py'), os.path.join(config.snapshot_dir, 'model.py'))  # for the model setting.
+    shutil.copy2(os.path.join('utils', 'loss.py'), os.path.join(config.snapshot_dir, 'loss.py'))
+    shutil.copy2(os.path.join('datasets', 'ThreeDMatch.py'), os.path.join(config.snapshot_dir, 'dataset.py'))
     json.dump(
         config,
         open(os.path.join(config.snapshot_dir, 'config.json'), 'w'),

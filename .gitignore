@@ -10,6 +10,7 @@ __pycache__/*
 *.so
 pytorch_ops/*
 geometric_registration/*/
+geometric_registration/*.log
 geometric_registration/gt_result/
 geometric_registration/pred_result/
 D3Feat_temp/*

@@ -50,7 +50,7 @@ class Trainer(object):
                 if res['loss'] < self.best_loss:
                     self.best_loss = res['loss']
                     self._snapshot(epoch + 1, 'best_loss')
-                if res['accuracy'] < self.best_acc:
+                if res['accuracy'] > self.best_acc:
                     self.best_acc = res['accuracy']
                     self._snapshot(epoch + 1, 'best_acc')
 
@@ -177,8 +177,7 @@ class Trainer(object):
         import open3d as o3d
         from utils.pointcloud import make_point_cloud
         from datasets.ThreeDMatch import ThreeDMatchTestset
-        from geometric_registration.test_3DMatch import build_correspondence
-        from geometric_registration.common import get_pcd, get_keypts, get_desc, loadlog
+        from geometric_registration.common import get_pcd, get_keypts, get_desc, loadlog, build_correspondence
         
         dataloader_iter = self.test_loader.__iter__()
         save_path = f'D3Feat_temp'
