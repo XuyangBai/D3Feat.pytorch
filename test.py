@@ -223,4 +223,4 @@ if __name__ == '__main__':
     logging.info(recalls)
     logging.info(f"All 8 scene, average recall: {np.mean(recalls):.2f}%")
     logging.info(f"All 8 scene, average num inliers: {np.mean(inlier_nums):.2f}")
-    logging.info(f"All 8 scene, average num inliers ratio: {np.mean(inlier_ratios):.2f}")
+    logging.info(f"All 8 scene, average num inliers ratio: {np.mean(inlier_ratios)*100:.2f}%")

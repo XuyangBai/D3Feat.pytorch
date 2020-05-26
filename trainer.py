@@ -12,6 +12,8 @@ class Trainer(object):
         # parameters
         self.start_epoch = 0
         self.max_epoch = args.max_epoch
+        self.training_max_iter = args.training_max_iter
+        self.val_max_iter = args.val_max_iter
         self.save_dir = args.save_dir
         self.device = args.device
         self.verbose = args.verbose
@@ -71,6 +73,7 @@ class Trainer(object):
         data_timer, model_timer = Timer(), Timer()
         loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.train_loader.dataset) // self.train_loader.batch_size)
+        num_iter = min(self.training_max_iter, num_iter)
         train_loader_iter = self.train_loader.__iter__()
         # for iter, inputs in enumerate(self.train_loader):
         for iter in range(num_iter):
@@ -128,6 +131,7 @@ class Trainer(object):
         data_timer, model_timer = Timer(), Timer()
         loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.val_loader.dataset) // self.val_loader.batch_size)
+        num_iter = min(self.val_max_iter, num_iter)
         test_loader_iter = self.val_loader.__iter__()
         for iter in range(num_iter):
             data_timer.tic()

@@ -135,8 +135,6 @@ class ThreeDMatchDataset(data.Dataset):
         return pts0, pts1, feat0, feat1, sel_corr, dist_keypts
             
     def __len__(self):
-        if self.split == 'val':
-            return 400
         return len(self.src_to_tgt.keys())
 
 class ThreeDMatchTestset(data.Dataset):
