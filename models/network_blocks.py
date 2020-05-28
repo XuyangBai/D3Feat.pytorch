@@ -146,6 +146,21 @@ class unary_block(nn.Module):
         return f'unary(in_fdim={self.in_fdim}, out_fdim={self.out_fdim})'
 
 
+class last_unary_block(nn.Module):
+    def __init__(self, config, in_fdim, out_fdim):
+        super(last_unary_block, self).__init__()
+        self.config = config
+        self.in_fdim, self.out_fdim = in_fdim, out_fdim
+        self.weight = weight_variable([in_fdim, out_fdim])
+
+    def forward(self, query_points, support_points, neighbors_indices, features):
+        x = conv_ops.unary_convolution(features, self.weight)
+        return x
+
+    def __repr__(self):
+        return f'last_unary(in_fdim={self.in_fdim}, out_fdim={self.out_fdim})'
+
+
 class simple_block(nn.Module):
     def __init__(self, config, in_fdim, out_fdim, radius, strided=False):
         super(simple_block, self).__init__()
@@ -398,6 +413,8 @@ class global_average_block(nn.Module):
 def get_block(block_name, config, in_fdim, out_fdim, radius, strided):
     if block_name == 'unary':
         return unary_block(config, in_fdim, out_fdim)
+    if block_name == 'last_unary':
+        return last_unary_block(config, in_fdim, out_fdim)
     if block_name == 'simple' or block_name == 'simple_strided':
         return simple_block(config, in_fdim, out_fdim, radius=radius, strided=strided)
     if block_name == 'nearest_upsample':

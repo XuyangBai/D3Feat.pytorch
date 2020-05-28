@@ -120,7 +120,10 @@ class KPFCNN(nn.Module):
         for block_i, block in enumerate(config.architecture[start_i:]):
 
             is_strided = 'strided' in block
-            self.blocks[f'layer{layer}/{block}'] = get_block(block, config, int(1.5 * in_fdim), out_fdim, radius=r, strided=is_strided)
+            if block != 'last_unary':
+                self.blocks[f'layer{layer}/{block}'] = get_block(block, config, int(1.5 * in_fdim), out_fdim, radius=r, strided=is_strided)
+            else:
+                self.blocks[f'layer{layer}/{block}'] = get_block(block, config, in_fdim, out_fdim, radius=r, strided=is_strided)
 
             # update feature dimension
             in_fdim = out_fdim
@@ -170,7 +173,7 @@ class KPFCNN(nn.Module):
                     raise ValueError(f"Unknown block type. {block}")
                 features = block_ops(upsample_indices, features)
             else:
-                if block in ['unary', 'simple', 'resnet', 'resnetb']:
+                if block in ['unary', 'simple', 'resnet', 'resnetb', 'last_unary']:
                     query_points = inputs['points'][layer]
                     support_points = inputs['points'][layer]
                     neighbors_indices = inputs['neighbors'][layer]
