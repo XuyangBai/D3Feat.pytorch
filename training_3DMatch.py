@@ -8,7 +8,7 @@ from datasets.ThreeDMatch import ThreeDMatchDataset, ThreeDMatchTestset
 from trainer import Trainer
 from models.D3Feat import KPFCNN
 from datasets.dataloader import get_dataloader
-from utils.loss import ContrastiveLoss, CircleLoss
+from utils.loss import ContrastiveLoss, CircleLoss, DetLoss
 from torch import optim
 from torch import nn
 import torch
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     
     config.evaluation_metric = {
         'desc_loss': desc_loss,
-        'det_loss': desc_loss,
+        'det_loss': DetLoss(metric='euclidean'),
     }
     config.metric_weight = {
         'desc_loss': config.desc_loss_weight,

@@ -26,6 +26,7 @@ class Trainer(object):
         self.scheduler_interval = args.scheduler_interval
         self.snapshot_interval = args.snapshot_interval
         self.evaluation_metric = args.evaluation_metric
+        self.metric_weight = args.metric_weight
         self.writer = SummaryWriter(log_dir=args.tboard_dir)
         # self.writer = SummaryWriter(logdir=args.tboard_dir)
 
@@ -71,7 +72,7 @@ class Trainer(object):
 
     def train_epoch(self, epoch):
         data_timer, model_timer = Timer(), Timer()
-        loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
+        desc_loss_meter, det_loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.train_loader.dataset) // self.train_loader.batch_size)
         num_iter = min(self.training_max_iter, num_iter)
         train_loader_iter = self.train_loader.__iter__()
@@ -89,12 +90,15 @@ class Trainer(object):
             model_timer.tic()
             # forward
             self.optimizer.zero_grad()
-            features = self.model(inputs)
+            features, scores = self.model(inputs)
             anc_features = features[inputs["corr"][:, 0].long()]
             pos_features = features[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
+            anc_scores = scores[inputs["corr"][:, 0].long()]
+            pos_scores = scores[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
             
-            loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric["desc_loss"](anc_features, pos_features, inputs['dist_keypts'])
-
+            desc_loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric["desc_loss"](anc_features, pos_features, inputs['dist_keypts'])
+            det_loss = self.evaluation_metric['det_loss'](dist, anc_scores, pos_scores)
+            loss = desc_loss * self.metric_weight['desc_loss'] + det_loss * self.metric_weight['det_loss']
             d_pos = np.mean(d_pos)
             d_neg = np.mean(d_neg)
 
@@ -102,19 +106,22 @@ class Trainer(object):
             loss.backward()
             self.optimizer.step()
             model_timer.toc()
-            loss_meter.update(float(loss))
+            desc_loss_meter.update(float(desc_loss))
+            det_loss_meter.update(float(det_loss))
             d_pos_meter.update(float(d_pos))
             d_neg_meter.update(float(d_neg))
             acc_meter.update(float(acc))
 
             if (iter + 1) % 100 == 0 and self.verbose:
                 curr_iter = num_iter * (epoch - 1) + iter
-                self.writer.add_scalar('train/Loss', float(loss), curr_iter)
-                self.writer.add_scalar('train/D_pos', float(d_pos), curr_iter)
-                self.writer.add_scalar('train/D_neg', float(d_neg), curr_iter)
-                self.writer.add_scalar('train/Accuracy', float(acc), curr_iter)
+                self.writer.add_scalar('train/Desc_Loss', float(desc_loss_meter.avg), curr_iter)
+                self.writer.add_scalar('train/Det_Loss', float(det_loss_meter.avg), curr_iter)
+                self.writer.add_scalar('train/D_pos', float(d_pos_meter.avg), curr_iter)
+                self.writer.add_scalar('train/D_neg', float(d_neg_meter.avg), curr_iter)
+                self.writer.add_scalar('train/Accuracy', float(acc_meter.avg), curr_iter)
                 print(f"Epoch: {epoch+1} [{iter+1:4d}/{num_iter}] "
-                      f"loss: {loss_meter.avg:.2f} "
+                      f"desc loss: {desc_loss_meter.avg:.2f} "
+                      f"det loss: {det_loss_meter.avg:.2f} "
                       f"acc:  {acc_meter.avg:.2f} "
                       f"d_pos: {d_pos_meter.avg:.2f} "
                       f"d_neg: {d_neg_meter.avg:.2f} "
@@ -122,14 +129,13 @@ class Trainer(object):
                       f"model time: {model_timer.avg:.2f}s")
         # finish one epoch
         epoch_time = model_timer.total_time + data_timer.total_time
-        print(f'Epoch {epoch+1}: Loss : {loss_meter.avg:.2f}, Accuracy: {acc_meter.avg:.2f}, D_pos: {d_pos_meter.avg:.2f}, D_neg: {d_neg_meter.avg:.2f}, time {epoch_time:.2f}s')
+        print(f'Epoch {epoch+1}: Desc Loss: {desc_loss_meter.avg:.2f}, Det Loss : {det_loss_meter.avg:.2f}, Accuracy: {acc_meter.avg:.2f}, D_pos: {d_pos_meter.avg:.2f}, D_neg: {d_neg_meter.avg:.2f}, time {epoch_time:.2f}s')
 
     def evaluate(self, epoch):
         self.model.eval()
         fmr = self.evaluate_registration(epoch)
-        print(f"Eval epoch {epoch+1}, FMR: {fmr}")
         data_timer, model_timer = Timer(), Timer()
-        loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
+        desc_loss_meter, det_loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.val_loader.dataset) // self.val_loader.batch_size)
         num_iter = min(self.val_max_iter, num_iter)
         test_loader_iter = self.val_loader.__iter__()
@@ -144,23 +150,29 @@ class Trainer(object):
             data_timer.toc()
 
             model_timer.tic()
-            features = self.model(inputs)
+            features, scores = self.model(inputs)
             anc_features = features[inputs["corr"][:, 0].long()]
             pos_features = features[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
+            anc_scores = scores[inputs["corr"][:, 0].long()]
+            pos_scores = scores[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
             
-            loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric['desc_loss'](anc_features, pos_features, inputs['dist_keypts'])
+            desc_loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric['desc_loss'](anc_features, pos_features, inputs['dist_keypts'])
+            det_loss = self.evaluation_metric['det_loss'](dists, anc_scores, pos_scores)
+            loss = desc_loss * self.metric_weight['desc_loss'] + det_loss * self.metric_weight['det_loss']
             d_pos = np.mean(d_pos)
             d_neg = np.mean(d_neg)
 
             model_timer.toc()
-            loss_meter.update(float(loss))
+            desc_loss_meter.update(float(desc_loss))
+            det_loss_meter.update(float(det_loss))
             d_pos_meter.update(float(d_pos))
             d_neg_meter.update(float(d_neg))
             acc_meter.update(float(acc))
 
             if (iter + 1) % 100 == 0 and self.verbose:
                 print(f"Eval epoch: {epoch+1} [{iter+1:4d}/{num_iter}] "
-                      f"loss: {loss_meter.avg:.2f} "
+                      f"desc loss: {desc_loss_meter.avg:.2f} "
+                      f"det loss: {det_loss_meter.avg:.2f}"
                       f"acc:  {acc_meter.avg:.2f} "
                       f"d_pos: {d_pos_meter.avg:.2f} "
                       f"d_neg: {d_neg_meter.avg:.2f} "
@@ -168,7 +180,8 @@ class Trainer(object):
                       f"model time: {model_timer.avg:.2f}s")
         self.model.train()
         res = {
-            'loss': loss_meter.avg,
+            'desc_loss': desc_loss_meter.avg,
+            'det_loss': det_loss_meter.avg,
             'accuracy': acc_meter.avg,
             'fmr': fmr,
             'd_pos': d_pos_meter.avg,
@@ -219,7 +232,7 @@ class Trainer(object):
                         inputs[k] = [item.cuda() for item in v]
                     else:
                         inputs[k] = v.cuda()
-                output = self.model(inputs)
+                output, scores = self.model(inputs)
                 pcd_size = inputs['stack_lengths'][0][0]
                 pts = inputs['points'][0][:int(pcd_size)]
                 features = output[:int(pcd_size)]
@@ -236,6 +249,8 @@ class Trainer(object):
             descpath = f"D3Feat_temp/descriptors/{scene}"
             gtpath = f'geometric_registration/gt_result/{scene}-evaluation/'
             gtLog = loadlog(gtpath)
+            inlier_num_list = []
+            inlier_ratio_list = []
             for id1 in range(num_frag):
                 for id2 in range(id1 + 1, num_frag):
                     cloud_bin_s = f'cloud_bin_{id1}'
@@ -276,8 +291,11 @@ class Trainer(object):
                         inlier_ratio = num_inliers / len(distance)
                         if inlier_ratio > 0.05:
                             pred_matches += 1
+                            inlier_num_list.append(num_inliers)
+                            inlier_ratio_list.append(inlier_ratio)
                         gt_matches += 1
             recall_list.append(pred_matches * 100.0 / gt_matches)
+        print(f"Eval epoch {epoch+1}, FMR={recall_list[-1]}, Inlier Ratio={np.mean(inlier_ratio_list)*100:.2f}%, Inlier Num={np.mean(inlier_num_list):.2f}")
         return recall_list[-1]
                 
     def _snapshot(self, epoch, name=None):

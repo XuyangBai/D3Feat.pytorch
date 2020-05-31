@@ -139,9 +139,9 @@ class KPFCNN(nn.Module):
 
     def forward(self, inputs):
         features = self.feature_extraction(inputs)
-        # scores = self.detection_scores(inputs, features)
+        scores = self.detection_scores(inputs, features)
         features = F.normalize(features, p=2, dim=-1)
-        return features
+        return features, scores
 
     def feature_extraction(self, inputs):
         F = self.encoder.feature_extraction(inputs)
@@ -197,4 +197,52 @@ class KPFCNN(nn.Module):
 
         return features
 
-    # def detection_scores(self, inputs, features):
+    def detection_scores(self, inputs, features):
+        s_time = time.time()
+        neighbor = inputs['neighbors'][0]  # [n_points, n_neighbors]
+        first_pcd_length, second_pcd_length = inputs['stack_lengths'][0]
+
+        first_pcd_indices = torch.arange(first_pcd_length)
+        second_pcd_indices = torch.arange(first_pcd_length, first_pcd_length+second_pcd_length)
+
+        # add a fake point in the last row for shadow neighbors
+        shadow_features = torch.zeros_like(features[:1, :])
+        features = torch.cat([features, shadow_features], dim=0)
+        shadow_neighbor = torch.ones_like(neighbor[:1, :]) * (first_pcd_length + second_pcd_length)
+        neighbor = torch.cat([neighbor, shadow_neighbor], dim=0)
+
+        # #  normalize the feature to avoid overflow
+        # point_cloud_feature0 = torch.max(features[first_pcd_indices])
+        # point_cloud_feature1 = torch.max(features[second_pcd_indices])
+        # max_per_sample =  torch.cat([
+        #     torch.stack([point_cloud_feature0] * first_pcd_length, dim=0),
+        #     torch.stack([point_cloud_feature1] * (second_pcd_length+1), dim=0)
+        # ], dim=0)
+        features = features / (torch.max(features) + 1e-6)
+
+        # local max score (saliency score)
+        neighbor_features = features[neighbor, :] # [n_points, n_neighbors, 64]
+        neighbor_features_sum = torch.sum(neighbor_features, dim=-1)  # [n_points, n_neighbors]
+        neighbor_num = (neighbor_features_sum != 0).sum(dim=-1, keepdims=True)  # [n_points, 1]
+        neighbor_num = torch.max(neighbor_num, torch.ones_like(neighbor_num))
+        mean_features = torch.sum(neighbor_features, dim=1) / neighbor_num  # [n_points, 64]
+        local_max_score = F.softplus(features - mean_features)  # [n_points, 64]
+
+        # calculate the depth-wise max score
+        depth_wise_max = torch.max(features, dim=1, keepdims=True)[0]  # [n_points, 1]
+        depth_wise_max_score = features / (1e-6 + depth_wise_max)  # [n_points, 64]
+
+        all_scores = local_max_score * depth_wise_max_score
+        # use the max score among channel to be the score of a single point. 
+        scores = torch.max(all_scores, dim=1, keepdims=True)[0]  # [n_points, 1]
+
+        # hard selection (used during test)
+        if self.training is False:
+            local_max = torch.max(neighbor_features, dim=1)[0]
+            is_local_max = (features == local_max)
+            print(f"Local Max Num: {float(is_local_max.sum().detach().cpu())}")
+            detected = torch.max(is_local_max.float(), dim=1, keepdims=True)[0]
+            scores = scores * detected
+
+
+        return scores[:-1, :]

@@ -188,7 +188,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
 
     return dict_inputs
 
-def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_threshold=5000):
+def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_threshold=2000):
     timer = Timer()
     last_display = timer.total_time
 

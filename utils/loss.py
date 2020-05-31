@@ -154,3 +154,19 @@ class CircleLoss(nn.Module):
         loss = F.softplus(lse_positive + lse_negative) / self.log_scale
 
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
+
+class DetLoss(nn.Module):
+    def __init__(self, metric='euclidean'):
+        super(DetLoss, self).__init__()
+        self.metric = metric
+    
+    def forward(self, dists, anc_score, pos_score):
+        pids = torch.FloatTensor(np.arange(len(anc_score))).to(anc_score.device)
+        pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
+        neg_mask = torch.logical_not(pos_mask)
+
+        furthest_positive, _ = torch.max(dists * pos_mask.float(), dim=1)
+        closest_negative, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=1)
+
+        loss = (furthest_positive - closest_negative) * (anc_score + pos_score).squeeze(-1)
+        return torch.mean(loss)

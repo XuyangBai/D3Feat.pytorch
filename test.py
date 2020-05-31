@@ -162,6 +162,7 @@ if __name__ == '__main__':
     for i in range(config.num_layers-1):
         config.architecture.append('nearest_upsample')
         config.architecture.append('unary')
+    config.architecture.append('last_unary')
 
     # # dynamically load the model from snapshot
     # module_file_path = f'snapshot/{chosen_snap}/model.py'

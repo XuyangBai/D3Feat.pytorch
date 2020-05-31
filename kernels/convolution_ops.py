@@ -134,7 +134,7 @@ def KPConv_ops(query_points,
 
     elif KP_influence == 'linear':
         # Influence decrease linearly with the distance, and get to zero when d = KP_extent.
-        corr = 1 - torch.sqrt(sq_distances + 1e-10) / KP_extent
+        corr = 1 - torch.sqrt(sq_distances + 1e-10) / (2 * KP_extent)
         all_weights = torch.max(corr, torch.zeros_like(sq_distances))
         all_weights = all_weights.transpose(1, 2)
 
@@ -172,10 +172,10 @@ def KPConv_ops(query_points,
     output_features = torch.sum(kernel_outputs, dim=0, keepdim=False)
 
     # normalization term.
-    # neighbor_features_sum = torch.sum(neighborhood_features, dim=-1)
-    # neighbor_num = torch.sum(torch.gt(neighbor_features_sum, 0.0), dim=-1)
-    # neighbor_num = torch.max(neighbor_num, torch.ones_like(neighbor_num))
-    # output_features = output_features / neighbor_num.unsqueeze(1)
+    neighbor_features_sum = torch.sum(neighborhood_features, dim=-1)
+    neighbor_num = torch.sum(torch.gt(neighbor_features_sum, 0.0), dim=-1)
+    neighbor_num = torch.max(neighbor_num, torch.ones_like(neighbor_num))
+    output_features = output_features / neighbor_num.unsqueeze(1)
 
     return output_features
 
