@@ -49,9 +49,8 @@ class Trainer(object):
 
             if (epoch + 1) % 1 == 0:
                 res = self.evaluate(epoch + 1)
-                print(f'Evaluation: Epoch {epoch + 1}: Loss {res["loss"]}, Accuracy {res["accuracy"]}')
-                if res['loss'] < self.best_loss:
-                    self.best_loss = res['loss']
+                if res['desc_loss'] < self.best_loss:
+                    self.best_loss = res['desc_loss']
                     self._snapshot(epoch + 1, 'best_loss')
                 if res['accuracy'] > self.best_acc:
                     self.best_acc = res['accuracy']
@@ -172,7 +171,7 @@ class Trainer(object):
             if (iter + 1) % 100 == 0 and self.verbose:
                 print(f"Eval epoch: {epoch+1} [{iter+1:4d}/{num_iter}] "
                       f"desc loss: {desc_loss_meter.avg:.2f} "
-                      f"det loss: {det_loss_meter.avg:.2f}"
+                      f"det loss: {det_loss_meter.avg:.2f} "
                       f"acc:  {acc_meter.avg:.2f} "
                       f"d_pos: {d_pos_meter.avg:.2f} "
                       f"d_neg: {d_neg_meter.avg:.2f} "
@@ -187,6 +186,7 @@ class Trainer(object):
             'd_pos': d_pos_meter.avg,
             'd_neg': d_neg_meter.avg,
         }
+        print(f'Evaluation: Epoch {epoch}: Desc Loss {res["desc_loss"]}, Det Loss {res["det_loss"]}, Accuracy {res["accuracy"]}')
         return res
 
     def evaluate_registration(self, epoch):
@@ -295,7 +295,7 @@ class Trainer(object):
                             inlier_ratio_list.append(inlier_ratio)
                         gt_matches += 1
             recall_list.append(pred_matches * 100.0 / gt_matches)
-        print(f"Eval epoch {epoch+1}, FMR={recall_list[-1]}, Inlier Ratio={np.mean(inlier_ratio_list)*100:.2f}%, Inlier Num={np.mean(inlier_num_list):.2f}")
+        print(f"Eval epoch {epoch}, FMR={recall_list[-1]}, Inlier Ratio={np.mean(inlier_ratio_list)*100:.2f}%, Inlier Num={np.mean(inlier_num_list):.2f}")
         return recall_list[-1]
                 
     def _snapshot(self, epoch, name=None):
