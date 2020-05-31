@@ -198,7 +198,6 @@ class KPFCNN(nn.Module):
         return features
 
     def detection_scores(self, inputs, features):
-        s_time = time.time()
         neighbor = inputs['neighbors'][0]  # [n_points, n_neighbors]
         first_pcd_length, second_pcd_length = inputs['stack_lengths'][0]
 
@@ -240,7 +239,7 @@ class KPFCNN(nn.Module):
         if self.training is False:
             local_max = torch.max(neighbor_features, dim=1)[0]
             is_local_max = (features == local_max)
-            print(f"Local Max Num: {float(is_local_max.sum().detach().cpu())}")
+            # print(f"Local Max Num: {float(is_local_max.sum().detach().cpu())}")
             detected = torch.max(is_local_max.float(), dim=1, keepdims=True)[0]
             scores = scores * detected
 

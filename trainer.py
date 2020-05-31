@@ -41,9 +41,9 @@ class Trainer(object):
     def train(self):
 
         self.model.train()
-        # res = self.evaluate(self.start_epoch)
-        # for k,v in res.items():
-            # self.writer.add_scalar(f'val/{k}', v, 0)
+        res = self.evaluate(self.start_epoch)
+        for k,v in res.items():
+            self.writer.add_scalar(f'val/{k}', v, 0)
         for epoch in range(self.start_epoch, self.max_epoch):
             self.train_epoch(epoch)
 
@@ -157,7 +157,7 @@ class Trainer(object):
             pos_scores = scores[inputs["corr"][:, 1].long() + inputs['stack_lengths'][0][0]]
             
             desc_loss, acc, d_pos, d_neg, _, dist = self.evaluation_metric['desc_loss'](anc_features, pos_features, inputs['dist_keypts'])
-            det_loss = self.evaluation_metric['det_loss'](dists, anc_scores, pos_scores)
+            det_loss = self.evaluation_metric['det_loss'](dist, anc_scores, pos_scores)
             loss = desc_loss * self.metric_weight['desc_loss'] + det_loss * self.metric_weight['det_loss']
             d_pos = np.mean(d_pos)
             d_neg = np.mean(d_neg)
