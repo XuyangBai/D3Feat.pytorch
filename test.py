@@ -43,8 +43,8 @@ def register_one_scene(inlier_ratio_threshold, distance_threshold, save_path, re
                 target_keypts = get_keypts(keyptspath, cloud_bin_t)
                 source_desc = get_desc(descpath, cloud_bin_s, 'D3Feat')
                 target_desc = get_desc(descpath, cloud_bin_t, 'D3Feat')
-                source_score = get_scores(scorepath, cloud_bin_s, 'D3Feat')
-                target_score = get_scores(scorepath, cloud_bin_t, 'D3Feat')
+                source_score = get_scores(scorepath, cloud_bin_s, 'D3Feat').squeeze()
+                target_score = get_scores(scorepath, cloud_bin_t, 'D3Feat').squeeze()
                 source_desc = np.nan_to_num(source_desc)
                 target_desc = np.nan_to_num(target_desc)
                 
@@ -117,11 +117,11 @@ def generate_features(model, dloader, config, chosen_snapshot):
                     inputs[k] = [item.cuda() for item in v]
                 else:
                     inputs[k] = v.cuda()
-            output = model(inputs)
+            features, scores = model(inputs)
             pcd_size = inputs['stack_lengths'][0][0]
             pts = inputs['points'][0][:int(pcd_size)]
-            features = output[:int(pcd_size)]
-            scores = torch.ones_like(features[:, 0:1])
+            features, scores = features[:int(pcd_size)], scores[:int(pcd_size)]
+            # scores = torch.ones_like(features[:, 0:1])
             np.save(f'{descriptor_path_scene}/cloud_bin_{ids}.D3Feat', features.detach().cpu().numpy().astype(np.float32))
             np.save(f'{keypoint_path_scene}/cloud_bin_{ids}', pts.detach().cpu().numpy().astype(np.float32))
             np.save(f'{score_path_scene}/cloud_bin_{ids}', scores.detach().cpu().numpy().astype(np.float32))
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('--chosen_snapshot', default='', type=str, help='snapshot dir')
     parser.add_argument('--inlier_ratio_threshold', default=0.05, type=float)
     parser.add_argument('--distance_threshold', default=0.10, type=float)
-    parser.add_argument('--random_points', default=True, action='store_true')
+    parser.add_argument('--random_points', default=False, action='store_true')
     parser.add_argument('--num_points', default=250, type=int)
     parser.add_argument('--generate_features', default=False, action='store_true')
     args = parser.parse_args()
@@ -207,6 +207,7 @@ if __name__ == '__main__':
         'sun3d-mit_lab_hj-lab_hj_tea_nov_2_2012_scan1_erika'
     ]
     return_dict = Manager().dict()
+    # register_one_scene(args.inlier_ratio_threshold, args.distance_threshold, save_path, return_dict, scene_list[0])
     jobs = []
     for scene in scene_list:
         p = Process(target=register_one_scene, args=(args.inlier_ratio_threshold, args.distance_threshold, save_path, return_dict, scene))
