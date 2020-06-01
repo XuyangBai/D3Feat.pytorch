@@ -41,6 +41,7 @@ class ThreeDMatchDataset(data.Dataset):
                  num_node=16, 
                  downsample=0.03, 
                  self_augment=False, 
+                 augment_noise=0.005,
                  augment_axis=1, 
                  augment_rotation=1.0,
                  augment_translation=0.001,
@@ -51,6 +52,7 @@ class ThreeDMatchDataset(data.Dataset):
         self.num_node = num_node
         self.downsample = downsample
         self.self_augment = self_augment
+        self.augment_noise = augment_noise
         self.augment_axis = augment_axis
         self.augment_rotation = augment_rotation
         self.augment_translation = augment_translation
@@ -116,13 +118,17 @@ class ThreeDMatchDataset(data.Dataset):
         gt_trans[0:3, 0:3] = R
         gt_trans[0:3, 3] = T
         tgt_pcd.transform(gt_trans)
+        src_points = np.array(src_pcd.points)
+        tgt_points = np.array(tgt_pcd.points)
+        src_points += np.random.rand(src_points.shape[0], 3) * self.augment_noise
+        tgt_points += np.random.rand(tgt_points.shape[0], 3) * self.augment_noise
         
 
         corr = self.correspondences[f"{src_id}@{tgt_id}"]
         sel_corr = corr[np.random.choice(len(corr), self.num_node, replace=False)]
         
-        sel_P_src = np.array(src_pcd.points)[sel_corr[:,0], :].astype(np.float32)
-        sel_P_tgt = np.array(tgt_pcd.points)[sel_corr[:,1], :].astype(np.float32)
+        sel_P_src = src_points[sel_corr[:,0], :].astype(np.float32)
+        sel_P_tgt = tgt_points[sel_corr[:,1], :].astype(np.float32)
         dist_keypts = cdist(sel_P_src, sel_P_src)
         # sel_P_src = np.array(src_pcd.points)[sel_src, :].astype(np.float32)
         # sel_P_tgt = np.array(tgt_pcd.points)[sel_tgt, :].astype(np.float32)
