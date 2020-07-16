@@ -173,8 +173,8 @@ if __name__ == '__main__':
     # model = module.KPFCNN(config)
 
     model = KPFCNN(config)
-    model.load_state_dict(torch.load(f'snapshot/{args.chosen_snapshot}/models/model_best_loss.pth')['state_dict'])
-    print(f"Load weight from snapshot/{args.chosen_snapshot}/models/model_best_loss.pth")
+    model.load_state_dict(torch.load(f'snapshot/{args.chosen_snapshot}/models/model_best_acc.pth')['state_dict'])
+    print(f"Load weight from snapshot/{args.chosen_snapshot}/models/model_best_acc.pth")
     model.eval()
 
 

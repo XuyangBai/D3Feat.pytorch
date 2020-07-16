@@ -26,7 +26,7 @@ def bias_variable(size):
     return bias
 
 
-def leaky_relu_layer(negative_slope=0.1):
+def leaky_relu_layer(negative_slope=0.2):
     return nn.LeakyReLU(negative_slope=negative_slope)
 
 

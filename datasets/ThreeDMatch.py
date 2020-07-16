@@ -180,7 +180,7 @@ class ThreeDMatchTestset(data.Dataset):
             pcd_list = sorted(pcd_list, key=lambda x: int(x[:-4].split("_")[-1]))
             for i, ind in enumerate(pcd_list):
                 pcd = o3d.io.read_point_cloud(join(self.test_path, ind))
-                pcd = o3d.geometry.PointCloud.voxel_down_sample(pcd, voxel_size=0.03)
+                pcd = o3d.geometry.PointCloud.voxel_down_sample(pcd, voxel_size=downsample)
                 
                 # Load points and labels
                 points = np.array(pcd.points)
