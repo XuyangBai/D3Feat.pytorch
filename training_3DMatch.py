@@ -6,6 +6,7 @@ from config import get_config
 from easydict import EasyDict as edict
 from datasets.ThreeDMatch import ThreeDMatchDataset, ThreeDMatchTestset
 from trainer import Trainer
+# from models.architectures import KPFCNN
 from models.D3Feat import KPFCNN
 from datasets.dataloader import get_dataloader
 from utils.loss import ContrastiveLoss, CircleLoss, DetLoss
@@ -127,10 +128,8 @@ if __name__ == '__main__':
             )
     else:
         desc_loss = CircleLoss(
-            pos_margin=config.pos_margin,
-            neg_margin=config.neg_margin,
+            m=config.m,
             log_scale=config.log_scale,
-            metric='euclidean', 
             safe_radius=config.safe_radius
         ) 
     

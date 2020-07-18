@@ -12,7 +12,7 @@ class KPCNN(nn.Module):
         self.blocks = nn.ModuleDict()
 
         # Feature Extraction Module
-        r = config.first_subsampling_dl * config.density_parameter
+        r = config.first_subsampling_dl * config.deform_radius
         in_fdim = config.in_features_dim
         out_fdim = config.first_features_dim
         layer = 0
@@ -39,7 +39,7 @@ class KPCNN(nn.Module):
 
     def feature_extraction(self, inputs):
         # Current radius of convolution and feature dimension
-        r = self.config.first_subsampling_dl * self.config.density_parameter
+        r = self.config.first_subsampling_dl * self.config.deform_radius
         layer = 0
         fdim = self.config.first_features_dim
 
@@ -114,7 +114,7 @@ class KPFCNN(nn.Module):
                 break
 
         layer = config.num_layers - 1
-        r = config.first_subsampling_dl * config.density_parameter * 2 ** layer
+        r = config.first_subsampling_dl * config.deform_radius * 2 ** layer
         in_fdim = config.first_features_dim * 2 ** layer
         out_fdim = in_fdim
         for block_i, block in enumerate(config.architecture[start_i:]):
@@ -149,7 +149,7 @@ class KPFCNN(nn.Module):
 
         # Current radius of convolution and feature dimension
         layer = self.config.num_layers - 1
-        r = self.config.first_subsampling_dl * self.config.density_parameter * 2 ** layer
+        r = self.config.first_subsampling_dl * self.config.deform_radius * 2 ** layer
         fdim = self.config.first_features_dim * 2 ** layer
 
         # Find first upsampling block

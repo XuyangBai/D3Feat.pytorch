@@ -61,7 +61,7 @@ def KPConv(query_points,
     # Create one kernel disposition (as numpy array). Choose the KP distance to center thanks to the KP extent
     K_points_numpy = create_kernel_points(K_radius,
                                           num_kpoints,
-                                          num_kernels=1,
+                                        #   num_kernels=1,
                                           dimension=points_dim,
                                           fixed=fixed)
     K_points_numpy = K_points_numpy.reshape((num_kpoints, points_dim))
@@ -222,7 +222,7 @@ def KPConv_deformable(query_points,
     # Create one kernel disposition (as numpy array). Choose the KP distance to center thanks to the KP extent
     K_points_numpy = create_kernel_points(K_radius,
                                           num_kpoints,
-                                          num_kernels=1,
+                                        #   num_kernels=1,
                                           dimension=points_dim,
                                           fixed=fixed)
     K_points_numpy = K_points_numpy.reshape((num_kpoints, points_dim))
@@ -335,7 +335,7 @@ def KPConv_deformable_v2(query_points,
     # Create one kernel disposition (as numpy array). Choose the KP distance to center thanks to the KP extent
     K_points_numpy = create_kernel_points(K_radius,
                                           num_kpoints,
-                                          num_kernels=1,
+                                        #   num_kernels=1,
                                           dimension=points_dim,
                                           fixed=fixed)
     K_points_numpy = K_points_numpy.reshape((num_kpoints, points_dim))

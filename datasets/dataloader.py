@@ -85,7 +85,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
     batched_lengths = torch.from_numpy(np.array(batched_lengths_list)).int()
 
     # Starting radius of convolutions
-    r_normal = config.first_subsampling_dl * config.KP_extent * 2.5
+    r_normal = config.first_subsampling_dl * config.conv_radius
 
     # Starting layer
     layer_blocks = []
@@ -116,7 +116,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
         if layer_blocks:
             # Convolutions are done in this layer, compute the neighbors with the good radius
             if np.any(['deformable' in blck for blck in layer_blocks[:-1]]):
-                r = r_normal * config.density_parameter / (config.KP_extent * 2.5)
+                r = r_normal * config.deform_radius / config.conv_radius
             else:
                 r = r_normal
             conv_i = batch_neighbors_kpconv(batched_points, batched_points, batched_lengths, batched_lengths, r, neighborhood_limits[layer])
@@ -132,14 +132,14 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
         if 'pool' in block or 'strided' in block:
 
             # New subsampling length
-            dl = 2 * r_normal / (config.KP_extent * 2.5)
+            dl = 2 * r_normal / config.conv_radius
 
             # Subsampled points
             pool_p, pool_b = batch_grid_subsampling_kpconv(batched_points, batched_lengths, sampleDl=dl)
 
             # Radius of pooled neighbors
             if 'deformable' in block:
-                r = r_normal * config.density_parameter / (config.KP_extent * 2.5)
+                r = r_normal * config.deform_radius / config.conv_radius
             else:
                 r = r_normal
 
@@ -193,7 +193,7 @@ def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_thr
     last_display = timer.total_time
 
     # From config parameter, compute higher bound of neighbors number in a neighborhood
-    hist_n = int(np.ceil(4 / 3 * np.pi * (config.density_parameter + 1) ** 3))
+    hist_n = int(np.ceil(4 / 3 * np.pi * (config.deform_radius + 1) ** 3))
     neighb_hists = np.zeros((config.num_layers, hist_n), dtype=np.int32)
 
     # Get histogram of neighborhood sizes i in 1 epoch max.

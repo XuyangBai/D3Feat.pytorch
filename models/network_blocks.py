@@ -105,7 +105,7 @@ def closest_pool(features, upsample_indices):
 #     """
 #
 #     # Get KP extent from current radius and config density
-#     extent = config.KP_extent * radius / config.density_parameter
+#     extent = config.KP_extent * radius / config.deform_radius
 #
 #     # Convolution
 #     return conv_ops.KPConv(query_points,
@@ -116,7 +116,7 @@ def closest_pool(features, upsample_indices):
 #                            fixed=config.fixed_kernel_points,
 #                            KP_extent=extent,
 #                            KP_influence=config.KP_influence,
-#                            aggregation_mode=config.convolution_mode, )
+#                            aggregation_mode=config.aggregation_mode, )
 
 
 class unary_block(nn.Module):
@@ -190,9 +190,9 @@ class simple_block(nn.Module):
                             features,
                             K_values=self.weight,
                             fixed=self.config.fixed_kernel_points,
-                            KP_extent=self.config.KP_extent * self.radius / self.config.density_parameter,
+                            KP_extent=self.config.KP_extent * self.radius / self.config.deform_radius,
                             KP_influence=self.config.KP_influence,
-                            aggregation_mode=self.config.convolution_mode, )
+                            aggregation_mode=self.config.aggregation_mode, )
         if self.config.use_batch_norm:
             x = self.relu(self.bn(x))
         else:
@@ -247,9 +247,9 @@ class simple_deformable_block(nn.Module):
                                               w0=self.offset_weight,
                                               b0=self.offset_bias,
                                               fixed=self.config.fixed_kernel_points,
-                                              KP_extent=self.config.KP_extent * self.radius / self.config.density_parameter,
+                                              KP_extent=self.config.KP_extent * self.radius / self.config.deform_radius,
                                               KP_influence=self.config.KP_influence,
-                                              aggregation_mode=self.config.convolution_mode,
+                                              aggregation_mode=self.config.aggregation_mode,
                                               modulated=self.config.modulated)
         else:
             x = conv_ops.KPConv_deformable(query_points,
@@ -260,9 +260,9 @@ class simple_deformable_block(nn.Module):
                                            w0=self.offset_weight,
                                            b0=self.offset_bias,
                                            fixed=self.config.fixed_kernel_points,
-                                           KP_extent=self.config.KP_extent * self.radius / self.config.density_parameter,
+                                           KP_extent=self.config.KP_extent * self.radius / self.config.deform_radius,
                                            KP_influence=self.config.KP_influence,
-                                           aggregation_mode=self.config.convolution_mode,
+                                           aggregation_mode=self.config.aggregation_mode,
                                            modulated=self.config.modulated)
         if self.config.use_batch_norm:
             x = self.relu(self.bn(x))

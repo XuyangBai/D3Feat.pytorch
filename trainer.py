@@ -41,9 +41,9 @@ class Trainer(object):
     def train(self):
 
         self.model.train()
-        res = self.evaluate(self.start_epoch)
-        for k,v in res.items():
-            self.writer.add_scalar(f'val/{k}', v, 0)
+        # res = self.evaluate(self.start_epoch)
+        # for k,v in res.items():
+            # self.writer.add_scalar(f'val/{k}', v, 0)
         for epoch in range(self.start_epoch, self.max_epoch):
             self.train_epoch(epoch)
 
@@ -104,7 +104,7 @@ class Trainer(object):
             # backward
             loss.backward()
             if self.config.grad_clip_norm > 0:
-                torch.nn.utils.clip_grad_value_(net.parameters(), self.config.grad_clip_norm)
+                torch.nn.utils.clip_grad_value_(self.model.parameters(), self.config.grad_clip_norm)
             self.optimizer.step()
             model_timer.toc()
             desc_loss_meter.update(float(desc_loss))

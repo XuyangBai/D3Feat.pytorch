@@ -141,8 +141,7 @@ class CircleLoss(nn.Module):
         # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
         # closest_negative = torch.min(closest_negative_col, closest_negative_row)
         average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
-        diff = - (furthest_positive - closest_negative)
-        accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
+        accuracy = (furthest_positive > closest_negative).sum() * 100.0 / dists.shape[0]
 
 
         # pos = dists + 1e5 * (~pos_mask).float()
@@ -151,12 +150,15 @@ class CircleLoss(nn.Module):
         pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
         lse_positive = torch.logsumexp(-self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
 
-        neg = dists - 1e5 * (~neg_mask).float()
+        neg = dists - 128 * (~neg_mask).float()
         neg_weight =  (neg - self.neg_optimal).detach()
         neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
-        lse_negative = torch.logsumexp(self.log_scale * (neg - self.neg_margin) * neg_weight, dim=-1)
+        lse_negative_row = torch.logsumexp(self.log_scale * (neg - self.neg_margin) * neg_weight, dim=-1)
+        lse_negative_col = torch.logsumexp(self.log_scale * (neg - self.neg_margin) * neg_weight, dim=-2)
 
-        loss = F.softplus(lse_positive + lse_negative) / self.log_scale
+        loss_row = F.softplus(lse_positive + lse_negative_row) / self.log_scale
+        loss_col = F.softplus(lse_positive + lse_negative_col) / self.log_scale
+        loss = (loss_row + loss_col) / 2
 
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
 
