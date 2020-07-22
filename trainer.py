@@ -103,8 +103,8 @@ class Trainer(object):
 
             # backward
             loss.backward()
-            if self.config.grad_clip_norm > 0:
-                torch.nn.utils.clip_grad_value_(self.model.parameters(), self.config.grad_clip_norm)
+            # if self.config.grad_clip_norm > 0:
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.config.grad_clip_norm)
             self.optimizer.step()
             model_timer.toc()
             desc_loss_meter.update(float(desc_loss))

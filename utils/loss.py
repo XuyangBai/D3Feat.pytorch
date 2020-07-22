@@ -112,53 +112,47 @@ class CircleLoss(nn.Module):
     def __init__(self, m=0.1, log_scale=10, safe_radius=0.10):
         super(CircleLoss, self).__init__()
         self.log_scale = log_scale
-        self.pos_margin = 1 - m
-        self.neg_margin = m 
-        self.pos_optimal = 1 + m
-        self.neg_optimal = -m
+        self.pos_margin = 0.1
+        self.neg_margin = 1.4
+        self.pos_optimal = 0.1
+        self.neg_optimal = 1.4
         self.safe_radius = safe_radius
 
 
     def forward(self, anchor, positive, dist_keypts):
         pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
-        # dists = cdist(anchor, positive, metric=self.metric)
-        dists = torch.matmul(anchor, positive.permute(1,0))
-        # add 10 to false negative
-        # dist_keypts = np.eye(dist_keypts.shape[0]) * 10 + dist_keypts.detach().cpu().numpy()
-        # add_matrix = torch.zeros_like(dists)
-        # add_matrix[np.where(dist_keypts < self.safe_radius)] += 10
-        # dists = dists + add_matrix
+        dists = cdist(anchor, positive, metric='euclidean')
+        # build false negative 
         false_negative = dist_keypts < self.safe_radius
 
         pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
-        # pos_mask = pos_mask | false_negative
         neg_mask = torch.logical_not(pos_mask | false_negative)
 
         # dists * pos_mask get the distance of each valid anchor-positive pair.
-        furthest_positive, _ = torch.min(dists + 1e5 * (~pos_mask).float(), dim=1)
+        furthest_positive, _ = torch.max(dists * pos_mask.float(), dim=1)
         # here we use "dists +  10000*pos_mask" to avoid the anchor-positive pair been selected.
-        closest_negative, _ = torch.max(dists - 1e5 * (~neg_mask).float(), dim=1)
+        closest_negative, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=1)
         # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
         # closest_negative = torch.min(closest_negative_col, closest_negative_row)
         average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
-        accuracy = (furthest_positive > closest_negative).sum() * 100.0 / dists.shape[0]
+        diff = furthest_positive - closest_negative
+        accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
 
-
-        # pos = dists + 1e5 * (~pos_mask).float()
-        pos = furthest_positive[:, None]
-        pos_weight = (self.pos_optimal - pos).detach()
+        pos = dists - 1e5 * neg_mask.float()
+        pos_weight = (pos - self.pos_optimal).detach()
         pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
-        lse_positive = torch.logsumexp(-self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
+        lse_positive = torch.logsumexp(self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
 
-        neg = dists - 128 * (~neg_mask).float()
-        neg_weight =  (neg - self.neg_optimal).detach()
+        
+        neg = dists + 1e5 * (~neg_mask).float()
+        neg_weight =  (self.neg_optimal - neg).detach()
         neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
-        lse_negative_row = torch.logsumexp(self.log_scale * (neg - self.neg_margin) * neg_weight, dim=-1)
-        lse_negative_col = torch.logsumexp(self.log_scale * (neg - self.neg_margin) * neg_weight, dim=-2)
+        lse_negative_row = torch.logsumexp(self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-1)
+        lse_negative_col = torch.logsumexp(self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-2)
 
-        loss_row = F.softplus(lse_positive + lse_negative_row) / self.log_scale
-        loss_col = F.softplus(lse_positive + lse_negative_col) / self.log_scale
-        loss = (loss_row + loss_col) / 2
+        loss_col = F.softplus(lse_positive + lse_negative_row) / self.log_scale
+        loss_row = F.softplus(lse_positive + lse_negative_col) / self.log_scale
+        loss = loss_col + loss_row
 
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
 
