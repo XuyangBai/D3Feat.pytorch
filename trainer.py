@@ -45,7 +45,7 @@ class Trainer(object):
         # for k,v in res.items():
             # self.writer.add_scalar(f'val/{k}', v, 0)
         for epoch in range(self.start_epoch, self.max_epoch):
-            self.train_epoch(epoch)
+            self.train_epoch(epoch + 1)
 
             if (epoch + 1) % 1 == 0:
                 res = self.evaluate(epoch + 1)
@@ -103,9 +103,16 @@ class Trainer(object):
 
             # backward
             loss.backward()
+            do_step = True
+            for param in self.model.parameters():
+                if param.grad is not None:
+                    if (1 - torch.isfinite(param.grad).long()).sum() > 0:
+                        do_step = False
+                        break
+            if do_step is True:
+                self.optimizer.step()
             # if self.config.grad_clip_norm > 0:
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.config.grad_clip_norm)
-            self.optimizer.step()
             model_timer.toc()
             desc_loss_meter.update(float(desc_loss))
             det_loss_meter.update(float(det_loss))
@@ -120,7 +127,7 @@ class Trainer(object):
                 self.writer.add_scalar('train/D_pos', float(d_pos_meter.avg), curr_iter)
                 self.writer.add_scalar('train/D_neg', float(d_neg_meter.avg), curr_iter)
                 self.writer.add_scalar('train/Accuracy', float(acc_meter.avg), curr_iter)
-                print(f"Epoch: {epoch+1} [{iter+1:4d}/{num_iter}] "
+                print(f"Epoch: {epoch} [{iter+1:4d}/{num_iter}] "
                       f"desc loss: {desc_loss_meter.avg:.2f} "
                       f"det loss: {det_loss_meter.avg:.2f} "
                       f"acc:  {acc_meter.avg:.2f} "
@@ -130,7 +137,7 @@ class Trainer(object):
                       f"model time: {model_timer.avg:.2f}s")
         # finish one epoch
         epoch_time = model_timer.total_time + data_timer.total_time
-        print(f'Epoch {epoch+1}: Desc Loss: {desc_loss_meter.avg:.2f}, Det Loss : {det_loss_meter.avg:.2f}, Accuracy: {acc_meter.avg:.2f}, D_pos: {d_pos_meter.avg:.2f}, D_neg: {d_neg_meter.avg:.2f}, time {epoch_time:.2f}s')
+        print(f'Epoch {epoch}: Desc Loss: {desc_loss_meter.avg:.2f}, Det Loss : {det_loss_meter.avg:.2f}, Accuracy: {acc_meter.avg:.2f}, D_pos: {d_pos_meter.avg:.2f}, D_neg: {d_neg_meter.avg:.2f}, time {epoch_time:.2f}s')
 
     def evaluate(self, epoch):
         self.model.eval()

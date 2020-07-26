@@ -10,7 +10,7 @@ from multiprocessing import Process, Manager
 from functools import partial
 from easydict import EasyDict as edict
 from utils.pointcloud import make_point_cloud
-from models.D3Feat import KPFCNN
+from models.architectures import KPFCNN
 from utils.timer import Timer, AverageMeter
 from datasets.ThreeDMatch import ThreeDMatchTestset
 from datasets.dataloader import get_dataloader
@@ -159,9 +159,11 @@ if __name__ == '__main__':
     for i in range(config.num_layers-1):
         config.architecture.append('resnetb_strided')
         config.architecture.append('resnetb')
-    for i in range(config.num_layers-1):
+        config.architecture.append('resnetb')
+    for i in range(config.num_layers-2):
         config.architecture.append('nearest_upsample')
         config.architecture.append('unary')
+    config.architecture.append('nearest_upsample')
     config.architecture.append('last_unary')
 
     # # dynamically load the model from snapshot

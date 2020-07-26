@@ -394,7 +394,7 @@ def block_decider(block_name,
         return UnaryBlock(in_dim, out_dim, config.use_batch_norm, config.batch_norm_momentum)
     
     if block_name == 'last_unary':
-        return LastUnaryBlock(in_dim, out_dim, config.use_batch_norm, config.batch_norm_momentum)
+        return LastUnaryBlock(in_dim, 32, config.use_batch_norm, config.batch_norm_momentum)
 
     elif block_name in ['simple',
                         'simple_deformable',
