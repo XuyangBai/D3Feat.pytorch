@@ -82,6 +82,7 @@ if __name__ == '__main__':
     # create dataset and dataloader
     train_set = ThreeDMatchDataset(root=config.root,
                                         split='train',
+                                        downsample=config.downsample,
                                         num_node=config.num_node,
                                         augment_noise=config.augment_noise,
                                         augment_axis=config.augment_axis, 
@@ -92,6 +93,7 @@ if __name__ == '__main__':
     val_set = ThreeDMatchDataset(root=config.root,
                                     split='val',
                                     num_node=64,
+                                    downsample=config.downsample,
                                     augment_noise=config.augment_noise,
                                     augment_axis=config.augment_axis, 
                                     augment_rotation=config.augment_rotation,
@@ -99,6 +101,7 @@ if __name__ == '__main__':
                                     config=config,
                                     )
     test_set = ThreeDMatchTestset(root=config.root,
+                                    downsample=config.downsample,
                                     config=config,
                                     last_scene=True,
                                     )

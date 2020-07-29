@@ -239,10 +239,10 @@ def get_dataloader(dataset, batch_size=2, num_workers=4, shuffle=True, neighborh
 
 
 if __name__ == '__main__':
-    from datasets.ThreeDMatch import  ThreeDMatchDataset
+    from datasets.ThreeDMatch import  ThreeDMatchDataset, ThreeDMatchTestset
     from easydict import EasyDict as edict
     import json
-    chosen_snap = 'D3Feat05251126'
+    chosen_snap = 'D3Feat07272004_005'
     config_path = f'snapshot/{chosen_snap}/config.json'
     config = json.load(open(config_path, 'r'))
     config = edict(config)
@@ -253,12 +253,13 @@ if __name__ == '__main__':
     for i in range(config.num_layers-1):
         config.architecture.append('resnetb_strided')
         config.architecture.append('resnetb')
+        config.architecture.append('resnetb')
     for i in range(config.num_layers-1):
         config.architecture.append('nearest_upsample')
         config.architecture.append('unary')
-    dset = ThreeDMatchDataset(root='/ssd2/xuyang/3DMatch', split='train', config=config)
+    dset = ThreeDMatchDataset(root='/ssd2/xuyang/3DMatch', downsample=0.05, config=config)
 
-    dataloader, _ = get_dataloader(dset, batch_size=1, num_workers=10)
+    dataloader, neighborhood_limits = get_dataloader(dset, batch_size=1, num_workers=10)
     import pdb
     pdb.set_trace()
     import time

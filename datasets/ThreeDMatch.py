@@ -76,6 +76,7 @@ class ThreeDMatchDataset(data.Dataset):
                 self.ids_list = [*data.keys()]
             with open(keypts_filename, 'rb') as file:
                 self.correspondences = pickle.load(file)
+            print(f"Load PKL file from {pts_filename}")
         else:
             print("PKL file not found.")
             return
