@@ -141,7 +141,6 @@ class Trainer(object):
 
     def evaluate(self, epoch):
         self.model.eval()
-        fmr = self.evaluate_registration(epoch)
         data_timer, model_timer = Timer(), Timer()
         desc_loss_meter, det_loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.val_loader.dataset) // self.val_loader.batch_size)
@@ -191,122 +190,12 @@ class Trainer(object):
             'desc_loss': desc_loss_meter.avg,
             'det_loss': det_loss_meter.avg,
             'accuracy': acc_meter.avg,
-            'fmr': fmr,
             'd_pos': d_pos_meter.avg,
             'd_neg': d_neg_meter.avg,
         }
         print(f'Evaluation: Epoch {epoch}: Desc Loss {res["desc_loss"]}, Det Loss {res["det_loss"]}, Accuracy {res["accuracy"]}')
         return res
 
-    def evaluate_registration(self, epoch):
-        self.model.eval()
-        import open3d as o3d
-        from utils.pointcloud import make_point_cloud
-        from datasets.ThreeDMatch import ThreeDMatchTestset
-        from geometric_registration.common import get_pcd, get_keypts, get_desc, loadlog, build_correspondence
-        
-        dataloader_iter = self.test_loader.__iter__()
-        save_path = f'D3Feat_temp'
-        if not os.path.exists(save_path):
-            os.mkdir(save_path)
-        descriptor_path = f'D3Feat_temp/descriptors'
-        keypoint_path = f'D3Feat_temp/keypoints'
-        score_path = f'D3Feat_temp/scores'
-        if not os.path.exists(descriptor_path):
-            os.mkdir(descriptor_path)
-        if not os.path.exists(keypoint_path):
-            os.mkdir(keypoint_path)
-        if not os.path.exists(score_path):
-            os.mkdir(score_path)
-        
-        # select only one scene for run-time evaluation.
-        recall_list = []
-        for scene in self.test_loader.dataset.scene_list:
-            descriptor_path_scene = os.path.join(descriptor_path, scene)
-            keypoint_path_scene = os.path.join(keypoint_path, scene)
-            score_path_scene = os.path.join(score_path, scene)
-            if not os.path.exists(descriptor_path_scene):
-                os.mkdir(descriptor_path_scene)
-            if not os.path.exists(keypoint_path_scene):
-                os.mkdir(keypoint_path_scene)
-            if not os.path.exists(score_path_scene):
-                os.mkdir(score_path_scene)
-            pcdpath = f"{self.config.root}/fragments/{scene}/"
-            num_frag = len([filename for filename in os.listdir(pcdpath) if filename.endswith('ply')])
-            # generate descriptors for each fragment
-            for ids in range(num_frag):
-                inputs = dataloader_iter.next()
-                for k, v in inputs.items():  # load inputs to device.
-                    if type(v) == list:
-                        inputs[k] = [item.cuda() for item in v]
-                    else:
-                        inputs[k] = v.cuda()
-                output, scores = self.model(inputs)
-                pcd_size = inputs['stack_lengths'][0][0]
-                pts = inputs['points'][0][:int(pcd_size)]
-                features = output[:int(pcd_size)]
-                scores = torch.ones_like(features[:, 0:1])
-                np.save(f'{descriptor_path_scene}/cloud_bin_{ids}.D3Feat', features.detach().cpu().numpy().astype(np.float32))
-                np.save(f'{keypoint_path_scene}/cloud_bin_{ids}', pts.detach().cpu().numpy().astype(np.float32))
-                np.save(f'{score_path_scene}/cloud_bin_{ids}', scores.detach().cpu().numpy().astype(np.float32))
-                print(f"Generate cloud_bin_{ids} for {scene}")
-        
-            gt_matches = 0
-            pred_matches = 0
-            # register
-            keyptspath = f"D3Feat_temp/keypoints/{scene}"
-            descpath = f"D3Feat_temp/descriptors/{scene}"
-            gtpath = f'geometric_registration/gt_result/{scene}-evaluation/'
-            gtLog = loadlog(gtpath)
-            inlier_num_list = []
-            inlier_ratio_list = []
-            for id1 in range(num_frag):
-                for id2 in range(id1 + 1, num_frag):
-                    cloud_bin_s = f'cloud_bin_{id1}'
-                    cloud_bin_t = f'cloud_bin_{id2}'
-                    key = f"{id1}_{id2}"
-                    if key not in gtLog.keys():
-                        # skip the pairs that have less than 30% overlap.
-                        num_inliers = 0
-                        inlier_ratio = 0
-                        gt_flag = 0
-                    else:
-                        source_keypts = get_keypts(keyptspath, cloud_bin_s)
-                        target_keypts = get_keypts(keyptspath, cloud_bin_t)
-                        source_desc = get_desc(descpath, cloud_bin_s, 'D3Feat')
-                        target_desc = get_desc(descpath, cloud_bin_t, 'D3Feat')
-                        source_desc = np.nan_to_num(source_desc)
-                        target_desc = np.nan_to_num(target_desc)
-                        
-                        # randomly select 5000 keypts
-                        num_keypts = 5000
-                        source_indices = np.random.choice(range(source_keypts.shape[0]), num_keypts)
-                        target_indices = np.random.choice(range(target_keypts.shape[0]), num_keypts)
-                        source_keypts = source_keypts[source_indices, :]
-                        source_desc = source_desc[source_indices, :]
-                        target_keypts = target_keypts[target_indices, :]
-                        target_desc = target_desc[target_indices, :]
-                        
-                        corr = build_correspondence(source_desc, target_desc)
-
-                        gt_trans = gtLog[key]
-                        frag1 = source_keypts[corr[:, 0]]
-                        frag2_pc = o3d.geometry.PointCloud()
-                        frag2_pc.points = o3d.utility.Vector3dVector(target_keypts[corr[:, 1]])
-                        frag2_pc.transform(gt_trans)
-                        frag2 = np.asarray(frag2_pc.points)
-                        distance = np.sqrt(np.sum(np.power(frag1 - frag2, 2), axis=1))
-                        num_inliers = np.sum(distance < 0.1)
-                        inlier_ratio = num_inliers / len(distance)
-                        if inlier_ratio > 0.05:
-                            pred_matches += 1
-                            inlier_num_list.append(num_inliers)
-                            inlier_ratio_list.append(inlier_ratio)
-                        gt_matches += 1
-            recall_list.append(pred_matches * 100.0 / gt_matches)
-        print(f"Eval epoch {epoch}, FMR={recall_list[-1]}, Inlier Ratio={np.mean(inlier_ratio_list)*100:.2f}%, Inlier Num={np.mean(inlier_num_list):.2f}")
-        return recall_list[-1]
-                
     def _snapshot(self, epoch, name=None):
         state = {
             'epoch': epoch,

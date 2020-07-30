@@ -1,41 +1,40 @@
-## KPConv.pytorch
+# D3Feat repository
 
-This repo is implementation for KPConv(https://arxiv.org/abs/1904.08889) in pytorch.
+PyTorch implementation of D3Feat for CVPR'2020 Oral paper ["D3Feat: Joint Learning of Dense Detection and Description of 3D Local Features"](https://arxiv.org/abs/2003.03164), by Xuyang Bai, Zixin Luo, Lei Zhou, Hongbo Fu, Long Quan and Chiew-Lan Tai. D3Feat is also available in [Tensorflow](https://github.com/XuyangBai/D3Feat).
 
-## TODO
-There are still some works to be done:
-- [x] Deformable KPConv. Currently I have only implemented the rigid KPConv.
-  - [ ] Regularization loss for the deformable convolution needs to be implemented. I have tried using the deformable convolution layer in part segmention on shapenet without the regularization term, the performance is similar with the rigid convolution counterparts.
-- [x] Speed up. For current implementation, the `collate_fn` where the neighbor indices and pooling indices are calculated, is too slow. In the tf version, the author implement 2 tensroflow C++ wrapper which is quite efficient. I am planing to write C++ extention using pytorch. 
-  - [ ] But after I implemented the C++ extention, the evaluation time reduces significantly while the model forward and backward pass still cost about 0.8s per iteration.
-- [ ] Maybe other datasets.
+This paper focus on dense feature detection and description for 3D point clouds in a joint manner. If you find this project useful, please cite:
 
+```bash
+@article{bai2020d3feat,
+  title={D3Feat: Joint Learning of Dense Detection and Description of 3D Local Features},
+  author={Xuyang Bai, Zixin Luo, Lei Zhou, Hongbo Fu, Long Quan and Chiew-Lan Tai},
+  journal={arXiv:2003.03164 [cs.CV]},
+  year={2020}
+}
+
+```
+
+## Introduction
+
+A successful point cloud registration often lies on robust establishment of sparse matches through discriminative 3D local features. Despite the fast evolution of learning-based 3D feature descriptors, little attention has been drawn to the learning of 3D feature detectors, even less for a joint learning of the two tasks. In this paper, we leverage a 3D fully convolutional network for 3D point clouds, and propose a novel and practical learning mechanism that densely predicts both a detection score and a description feature for each 3D point. In particular, we propose a keypoint selection strategy that overcomes the inherent density variations of 3D point clouds, and further propose a self-supervised detector loss guided by the on-the-fly feature matching results during training. Finally, our method achieves state-of-the-art results in both indoor and outdoor scenarios, evaluated on 3DMatch and KITTI datasets, and shows its strong generalization ability on the ETH dataset. Towards practical use, we show that by adopting a reliable feature detector, sampling a smaller number of features is sufficient to achieve accurate and fast point cloud alignment.
+
+![fig1](https://github.com/XuyangBai/D3Feat/blob/master/figures/detection.png)
 
 ## Installation
 
-1. Create an environment from the environment.yml file,
-```
-conda env create -f environment.yml
-```
-2. Compile the customized Tensorflow operators and C++ extension module following the [installation instructions](https://github.com/HuguesTHOMAS/KPConv/blob/master/INSTALL.md) provided by the authors.
-3. Go to `pytorch_ops` dictionary and run `python setup.py install` to build and install the C++ extension for `batch_find_neighbors` function.
+* Create the environment and install the required libaries:
 
+           conda env create -f environment.yml
+
+* Compile the C++ extension module for python located in `cpp_wrappers`. Open a terminal in this folder, and run:
+
+          sh compile_wrappers.sh
 
 ## Experiments
 
-Due to the time limitation, I have just implemented the experiments on ShapeNet(classification and part segmentation) and ModelNet40. 
-
-- Shape Classification on ModelNet40 or ShapeNet.
-```
-python training_ModelNet.py[training_ShapeNetCls.py]
-```
-
-- Part Segmentation on ShapeNet. (I have only implemented the single class part segmentation.)
-```
-python training_ShapeNetPart.py
-```
+We provide detailed instructions to run D3Feat on 3DMatch, KITTI and ETH dataset, please see the instructions in [Original D3Feat Repo](https://github.com/XuyangBai/D3Feat) foe detail.
 
 ## Acknowledgment
 
-Thank @HuguesTHOMAS for sharing the tensorflow version and valuable explainations. 
+We would like to thank the open-source code of [KPConv](https://github.com/HuguesTHOMAS/KPConv-PyTorch).
 

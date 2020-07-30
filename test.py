@@ -187,6 +187,7 @@ if __name__ == '__main__':
 
     if args.generate_features:
         dset = ThreeDMatchTestset(root=config.root,
+                            downsample=config.downsample,
                             config=config,
                             last_scene=False,
                         )

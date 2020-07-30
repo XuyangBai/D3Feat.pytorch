@@ -126,8 +126,11 @@ class ThreeDMatchDataset(data.Dataset):
         
 
         corr = self.correspondences[f"{src_id}@{tgt_id}"]
-        sel_corr = corr[np.random.choice(len(corr), self.num_node, replace=False)]
-        
+        if len(corr) > self.num_node:
+            sel_corr = corr[np.random.choice(len(corr), self.num_node, replace=False)]
+        else:
+            sel_corr = corr
+
         sel_P_src = src_points[sel_corr[:,0], :].astype(np.float32)
         sel_P_tgt = tgt_points[sel_corr[:,1], :].astype(np.float32)
         dist_keypts = cdist(sel_P_src, sel_P_src)
