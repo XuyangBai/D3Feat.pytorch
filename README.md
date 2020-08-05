@@ -18,7 +18,7 @@ This paper focus on dense feature detection and description for 3D point clouds 
 
 A successful point cloud registration often lies on robust establishment of sparse matches through discriminative 3D local features. Despite the fast evolution of learning-based 3D feature descriptors, little attention has been drawn to the learning of 3D feature detectors, even less for a joint learning of the two tasks. In this paper, we leverage a 3D fully convolutional network for 3D point clouds, and propose a novel and practical learning mechanism that densely predicts both a detection score and a description feature for each 3D point. In particular, we propose a keypoint selection strategy that overcomes the inherent density variations of 3D point clouds, and further propose a self-supervised detector loss guided by the on-the-fly feature matching results during training. Finally, our method achieves state-of-the-art results in both indoor and outdoor scenarios, evaluated on 3DMatch and KITTI datasets, and shows its strong generalization ability on the ETH dataset. Towards practical use, we show that by adopting a reliable feature detector, sampling a smaller number of features is sufficient to achieve accurate and fast point cloud alignment.
 
-![fig1](https://github.com/XuyangBai/D3Feat/blob/master/figures/detection.png)
+![fig1](figures/detection.png)
 
 ## Installation
 
@@ -32,7 +32,16 @@ A successful point cloud registration often lies on robust establishment of spar
 
 ## Experiments
 
-We provide detailed instructions to run D3Feat on 3DMatch, KITTI and ETH dataset, please see the instructions in [Original D3Feat Repo](https://github.com/XuyangBai/D3Feat) foe detail.
+We only support 3DMatch dataset currently. Please look for the detailed instructions to download 3DMatch dataset in [Original D3Feat Repo](https://github.com/XuyangBai/D3Feat). To train the network, please run 
+```sh
+python train.py
+```
+The configuration can be changed in `config.py`. The snapshot and tensorboard file be saved in `snapshot/` and `tensorboard/`. The testing can be done by runnning
+```sh
+python test.py --chosen_snapshot [timestr of the model]
+```
+Then the geometric registration result will be saved in `geometric_registration/`.
+
 
 ## Acknowledgment
 
