@@ -370,10 +370,19 @@ class KPConv(nn.Module):
         kernel_outputs = torch.matmul(weighted_features, self.weights)
 
         # Convolution sum [n_points, out_fdim]
-        return torch.sum(kernel_outputs, dim=0)
+        # return torch.sum(kernel_outputs, dim=0)
+        output_features = torch.sum(kernel_outputs, dim=0, keepdim=False)
+
+        # normalization term.
+        neighbor_features_sum = torch.sum(neighb_x, dim=-1)
+        neighbor_num = torch.sum(torch.gt(neighbor_features_sum, 0.0), dim=-1)
+        neighbor_num = torch.max(neighbor_num, torch.ones_like(neighbor_num))
+        output_features = output_features / neighbor_num.unsqueeze(1)
+
+        return output_features
 
     def __repr__(self):
-        return 'KPConv(radius: {:.2f}, in_feat: {:d}, out_feat: {:d})'.format(self.radius,
+        return 'KPConv(radius: {:.2f}, extent: {:.2f}, in_feat: {:d}, out_feat: {:d})'.format(self.radius, self.KP_extent,
                                                                               self.in_channels,
                                                                               self.out_channels)
 

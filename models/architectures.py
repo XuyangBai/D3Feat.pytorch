@@ -293,6 +293,7 @@ class KPFCNN(nn.Module):
                 r *= 0.5
                 out_dim = out_dim // 2
 
+        print(self)
         return
 
     def forward(self, batch):
