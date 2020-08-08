@@ -49,9 +49,10 @@ if __name__ == '__main__':
         config.architecture.append('resnetb_strided')
         config.architecture.append('resnetb')
         config.architecture.append('resnetb')
-    for i in range(config.num_layers-1):
+    for i in range(config.num_layers-2):
         config.architecture.append('nearest_upsample')
         config.architecture.append('unary')
+    config.architecture.append('nearest_upsample')
     config.architecture.append('last_unary')
     print("Network Architecture:\n", "".join([layer+'\n' for layer in config.architecture]))
 
