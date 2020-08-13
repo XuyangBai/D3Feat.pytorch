@@ -25,8 +25,8 @@
 # Import numpy package and name it "np"
 import time
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
+#import matplotlib.pyplot as plt
+#from matplotlib import cm
 from os import makedirs
 from os.path import join, exists
 

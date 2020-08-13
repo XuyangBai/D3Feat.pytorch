@@ -6,7 +6,7 @@ import torch
 import cpp_wrappers.cpp_subsampling.grid_subsampling as cpp_subsampling
 import cpp_wrappers.cpp_neighbors.radius_neighbors as cpp_neighbors
 from utils.timer import Timer
-import batch_find_neighbors
+# import batch_find_neighbors
 
 
 def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=None, sampleDl=0.1, max_p=0, verbose=0, random_grid_orient=True):
