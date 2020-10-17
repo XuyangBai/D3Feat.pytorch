@@ -58,7 +58,7 @@ class ThreeDMatchDataset(data.Dataset):
         self.augment_translation = augment_translation
         self.config = config
 
-        assert self_augment == False
+        # assert self_augment == False
         
         # containers
         self.ids = []
@@ -104,11 +104,13 @@ class ThreeDMatchDataset(data.Dataset):
         if self.self_augment:
             tgt_pcd = make_point_cloud(self.points[src_ind])
             N_src = self.points[src_ind].shape[0]
-            N_tgt = self.points[tgt_ind].shape[0]
+            N_tgt = self.points[src_ind].shape[0]
+            corr = np.array([np.arange(N_src), np.arange(N_src)]).T
         else:
             tgt_pcd = make_point_cloud(self.points[tgt_ind])
             N_src = self.points[src_ind].shape[0]
             N_tgt = self.points[tgt_ind].shape[0]
+            corr = self.correspondences[f"{src_id}@{tgt_id}"]
         if N_src > 50000 or N_tgt > 50000:
             return self.__getitem__(int(np.random.choice(self.__len__(), 1)))
 
@@ -125,7 +127,6 @@ class ThreeDMatchDataset(data.Dataset):
         tgt_points += np.random.rand(tgt_points.shape[0], 3) * self.augment_noise
         
 
-        corr = self.correspondences[f"{src_id}@{tgt_id}"]
         if len(corr) > self.num_node:
             sel_corr = corr[np.random.choice(len(corr), self.num_node, replace=False)]
         else:
@@ -137,10 +138,13 @@ class ThreeDMatchDataset(data.Dataset):
         # sel_P_src = np.array(src_pcd.points)[sel_src, :].astype(np.float32)
         # sel_P_tgt = np.array(tgt_pcd.points)[sel_tgt, :].astype(np.float32)
                 
-        pts0 = np.array(src_pcd.points).astype(np.float32)
-        pts1 = np.array(tgt_pcd.points).astype(np.float32)
+        pts0 = src_points 
+        pts1 = tgt_points
         feat0 = np.ones_like(pts0[:, :1]).astype(np.float32)
         feat1 = np.ones_like(pts1[:, :1]).astype(np.float32)
+        if self.self_augment:
+            feat0[np.random.choice(pts0.shape[0],int(pts0.shape[0] * 0.99),replace=False)] = 0
+            feat1[np.random.choice(pts1.shape[0],int(pts1.shape[0] * 0.99),replace=False)] = 0
         
         return pts0, pts1, feat0, feat1, sel_corr, dist_keypts
             
@@ -202,6 +206,7 @@ class ThreeDMatchTestset(data.Dataset):
         return self.num_test
 
 if __name__ == "__main__":
-    dset = ThreeDMatchTestset(root='/home/xybai/KPConv/data/3DMatch/')
+    dset = ThreeDMatchDataset(root='/data/3DMatch/', split='train', num_node=64, downsample=0.05, self_augment=True)
+    dset[0]
     import pdb
     pdb.set_trace()

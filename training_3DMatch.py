@@ -84,6 +84,7 @@ if __name__ == '__main__':
     train_set = ThreeDMatchDataset(root=config.root,
                                         split='train',
                                         downsample=config.downsample,
+                                        self_augment=config.self_augment,
                                         num_node=config.num_node,
                                         augment_noise=config.augment_noise,
                                         augment_axis=config.augment_axis, 
@@ -95,16 +96,12 @@ if __name__ == '__main__':
                                     split='val',
                                     num_node=64,
                                     downsample=config.downsample,
+                                    self_augment=config.self_augment,
                                     augment_noise=config.augment_noise,
                                     augment_axis=config.augment_axis, 
                                     augment_rotation=config.augment_rotation,
                                     augment_translation=config.augment_translation,
                                     config=config,
-                                    )
-    test_set = ThreeDMatchTestset(root=config.root,
-                                    downsample=config.downsample,
-                                    config=config,
-                                    last_scene=True,
                                     )
     config.train_loader, neighborhood_limits = get_dataloader(dataset=train_set,
                                         batch_size=config.batch_size,
@@ -114,12 +111,6 @@ if __name__ == '__main__':
     config.val_loader,_ = get_dataloader(dataset=val_set,
                                         batch_size=config.batch_size,
                                         shuffle=True,
-                                        num_workers=config.num_workers,
-                                        neighborhood_limits=neighborhood_limits
-                                        )
-    config.test_loader,_ = get_dataloader(dataset=test_set,
-                                        batch_size=config.batch_size,
-                                        shuffle=False,
                                         num_workers=config.num_workers,
                                         neighborhood_limits=neighborhood_limits
                                         )

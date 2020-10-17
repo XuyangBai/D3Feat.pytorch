@@ -35,9 +35,7 @@ class Trainer(object):
 
         self.train_loader = args.train_loader
         self.val_loader = args.val_loader
-        self.test_loader = args.test_loader
         
-
     def train(self):
 
         self.model.train()
@@ -145,10 +143,10 @@ class Trainer(object):
         desc_loss_meter, det_loss_meter, acc_meter, d_pos_meter, d_neg_meter = AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
         num_iter = int(len(self.val_loader.dataset) // self.val_loader.batch_size)
         num_iter = min(self.val_max_iter, num_iter)
-        test_loader_iter = self.val_loader.__iter__()
+        val_loader_iter = self.val_loader.__iter__()
         for iter in range(num_iter):
             data_timer.tic()
-            inputs = test_loader_iter.next()
+            inputs = val_loader_iter.next()
             for k, v in inputs.items():  # load inputs to device.
                 if type(v) == list:
                     inputs[k] = [item.to(self.device) for item in v]

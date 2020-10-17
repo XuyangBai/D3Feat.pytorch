@@ -147,7 +147,7 @@ if __name__ == '__main__':
         format="")
 
 
-    config_path = f'snapshot/{args.chosen_snapshot}/config.json'
+    config_path = f'/data/D3Feat/snapshot/{args.chosen_snapshot}/config.json'
     config = json.load(open(config_path, 'r'))
     config = edict(config)
 
@@ -173,9 +173,12 @@ if __name__ == '__main__':
     # module = importlib.util.module_from_spec(module_spec)
     # module_spec.loader.exec_module(module)
     # model = module.KPFCNN(config)
-
+    
+    # if test on datasets with different scale
+    # config.first_subsampling_dl = [new voxel size for first layer]
+    
     model = KPFCNN(config)
-    model.load_state_dict(torch.load(f'snapshot/{args.chosen_snapshot}/models/model_best_acc.pth')['state_dict'])
+    model.load_state_dict(torch.load(f'/data/D3Feat/snapshot/{args.chosen_snapshot}/models/model_best_acc.pth')['state_dict'])
     print(f"Load weight from snapshot/{args.chosen_snapshot}/models/model_best_acc.pth")
     model.eval()
 
