@@ -5,21 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def all_diffs(a, b):
-    """ Returns a tensor of all combinations of a - b.
-
-    Args:
-        a (2D tensor): A batch of vectors shaped (B1, F).
-        b (2D tensor): A batch of vectors shaped (B2, F).
-
-    Returns:
-        The matrix of all pairwise differences between all vectors in `a` and in
-        `b`, will be of shape (B1, B2).
-
-    """
-    return torch.unsqueeze(a, dim=1) - torch.unsqueeze(b, dim=0)
-
-
 def cdist(a, b, metric='euclidean'):
     """Similar to scipy.spatial's cdist, but symbolic.
 
@@ -42,8 +27,10 @@ def cdist(a, b, metric='euclidean'):
         epsilon is added because the gradient of the square-root at zero is
         undefined. Thus, it will never return exact zero in these cases.
     """
+    if metric == 'cosine':
+        return torch.matmul(a, b.T)
 
-    diffs = all_diffs(a, b)
+    diffs = torch.unsqueeze(a, dim=1) - torch.unsqueeze(b, dim=0)
     if metric == 'sqeuclidean':
         return torch.sum(diffs ** 2, dim=-1)
     elif metric == 'euclidean':
@@ -155,6 +142,59 @@ class CircleLoss(nn.Module):
         loss = loss_col + loss_row
 
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
+
+
+
+class CircleLoss_cos(nn.Module):
+    def __init__(self, m=0.1, log_scale=10, safe_radius=0.10):
+        super(CircleLoss, self).__init__()
+        self.log_scale = log_scale
+        self.pos_margin = 0.9
+        self.neg_margin = 0.1
+        self.pos_optimal = 1.1
+        self.neg_optimal = - 0.1
+        self.safe_radius = safe_radius
+
+
+    def forward(self, anchor, positive, dist_keypts):
+        pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
+        # dists = cdist(anchor, positive, metric='euclidean')
+        dists = cdist(anchor, positive, metric='cosine')
+        # build false negative 
+        false_negative = dist_keypts < self.safe_radius
+
+        pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
+        neg_mask = torch.logical_not(pos_mask | false_negative)
+
+        # dists * pos_mask get the distance of each valid anchor-positive pair.
+        furthest_positive, _ = torch.min(dists + 1e5 * (1-pos_mask.float()).float(), dim=1)
+        # here we use "dists +  10000*pos_mask" to avoid the anchor-positive pair been selected.
+        closest_negative, _ = torch.max(dists *  (1-pos_mask.float()).float(), dim=1)
+        # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
+        # closest_negative = torch.min(closest_negative_col, closest_negative_row)
+        average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
+        diff = furthest_positive - closest_negative
+        accuracy = (diff > 0).sum() * 100.0 / diff.shape[0]
+
+        pos = dists + 1e5 * neg_mask.float()
+        pos_weight = (self.pos_optimal - pos).detach()
+        pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
+        lse_positive = torch.logsumexp(- self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
+
+        
+        neg = dists - 1e5 * (~neg_mask).float()
+        neg_weight =  (neg - self.neg_optimal).detach()
+        neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
+        lse_negative_row = torch.logsumexp(- self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-1)
+        lse_negative_col = torch.logsumexp(- self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-2)
+
+        loss_col = F.softplus(lse_positive + lse_negative_row) / self.log_scale
+        loss_row = F.softplus(lse_positive + lse_negative_col) / self.log_scale
+        loss = loss_col + loss_row
+
+        return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
+
+
 
 class DetLoss(nn.Module):
     def __init__(self, metric='euclidean'):

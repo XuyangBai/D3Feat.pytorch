@@ -495,7 +495,7 @@ class UnaryBlock(nn.Module):
         self.no_relu = no_relu
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.mlp = nn.Linear(in_dim, out_dim, bias=False)
+        self.mlp = nn.Linear(in_dim, out_dim, bias=True)
         self.batch_norm = BatchNormBlock(out_dim, self.use_bn, self.bn_momentum)
         if not no_relu:
             self.leaky_relu = nn.LeakyReLU(0.1)
@@ -529,7 +529,7 @@ class LastUnaryBlock(nn.Module):
         super(LastUnaryBlock, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.mlp = nn.Linear(in_dim, out_dim, bias=False)
+        self.mlp = nn.Linear(in_dim, out_dim, bias=True)
         return
 
     def forward(self, x, batch=None):
