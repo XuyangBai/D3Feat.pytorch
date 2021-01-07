@@ -28,18 +28,20 @@ def cdist(a, b, metric='euclidean'):
         undefined. Thus, it will never return exact zero in these cases.
     """
     if metric == 'cosine':
-        return torch.matmul(a, b.T)
-
-    diffs = torch.unsqueeze(a, dim=1) - torch.unsqueeze(b, dim=0)
-    if metric == 'sqeuclidean':
-        return torch.sum(diffs ** 2, dim=-1)
-    elif metric == 'euclidean':
-        return torch.sqrt(torch.sum(diffs ** 2, dim=-1) + 1e-12)
-    elif metric == 'cityblock':
-        return torch.sum(torch.abs(diffs), dim=-1)
+        return torch.sqrt(2 - 2 * torch.matmul(a, b.T))
+    elif metric == 'arccosine':
+        return torch.acos(torch.matmul(a, b.T))
     else:
-        raise NotImplementedError(
-            'The following metric is not implemented by `cdist` yet: {}'.format(metric))
+        diffs = torch.unsqueeze(a, dim=1) - torch.unsqueeze(b, dim=0)
+        if metric == 'sqeuclidean':
+            return torch.sum(diffs ** 2, dim=-1)
+        elif metric == 'euclidean':
+            return torch.sqrt(torch.sum(diffs ** 2, dim=-1) + 1e-12)
+        elif metric == 'cityblock':
+            return torch.sum(torch.abs(diffs), dim=-1)
+        else:
+            raise NotImplementedError(
+                'The following metric is not implemented by `cdist` yet: {}'.format(metric))
 
 
 class ContrastiveLoss(nn.Module):
@@ -96,31 +98,26 @@ class ContrastiveLoss(nn.Module):
 
 
 class CircleLoss(nn.Module):
-    def __init__(self, m=0.1, log_scale=10, safe_radius=0.10):
+    def __init__(self, dist_type='cosine', log_scale=10, safe_radius=0.10, pos_margin=0.1, neg_margin=1.4):
         super(CircleLoss, self).__init__()
         self.log_scale = log_scale
-        self.pos_margin = 0.1
-        self.neg_margin = 1.4
-        self.pos_optimal = 0.1
-        self.neg_optimal = 1.4
+        self.pos_margin = pos_margin
+        self.neg_margin = neg_margin
+        self.pos_optimal = pos_margin
+        self.neg_optimal = neg_margin
+        self.dist_type = dist_type
         self.safe_radius = safe_radius
 
-
     def forward(self, anchor, positive, dist_keypts):
+        dists = cdist(anchor, positive, metric=self.dist_type)
+
         pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
-        dists = cdist(anchor, positive, metric='euclidean')
-        # build false negative 
-        false_negative = dist_keypts < self.safe_radius
-
         pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
-        neg_mask = torch.logical_not(pos_mask | false_negative)
+        neg_mask = dist_keypts > self.safe_radius
 
-        # dists * pos_mask get the distance of each valid anchor-positive pair.
+
         furthest_positive, _ = torch.max(dists * pos_mask.float(), dim=1)
-        # here we use "dists +  10000*pos_mask" to avoid the anchor-positive pair been selected.
         closest_negative, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=1)
-        # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
-        # closest_negative = torch.min(closest_negative_col, closest_negative_row)
         average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
         diff = furthest_positive - closest_negative
         accuracy = (diff < 0).sum() * 100.0 / diff.shape[0]
@@ -128,72 +125,20 @@ class CircleLoss(nn.Module):
         pos = dists - 1e5 * neg_mask.float()
         pos_weight = (pos - self.pos_optimal).detach()
         pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
-        lse_positive = torch.logsumexp(self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
+        lse_positive_row = torch.logsumexp(self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
+        lse_positive_col = torch.logsumexp(self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-2)
 
-        
         neg = dists + 1e5 * (~neg_mask).float()
         neg_weight =  (self.neg_optimal - neg).detach()
         neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
         lse_negative_row = torch.logsumexp(self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-1)
         lse_negative_col = torch.logsumexp(self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-2)
 
-        loss_col = F.softplus(lse_positive + lse_negative_row) / self.log_scale
-        loss_row = F.softplus(lse_positive + lse_negative_col) / self.log_scale
+        loss_col = F.softplus(lse_positive_row + lse_negative_row) / self.log_scale
+        loss_row = F.softplus(lse_positive_col + lse_negative_col) / self.log_scale
         loss = loss_col + loss_row
 
         return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
-
-
-
-class CircleLoss_cos(nn.Module):
-    def __init__(self, m=0.1, log_scale=10, safe_radius=0.10):
-        super(CircleLoss, self).__init__()
-        self.log_scale = log_scale
-        self.pos_margin = 0.9
-        self.neg_margin = 0.1
-        self.pos_optimal = 1.1
-        self.neg_optimal = - 0.1
-        self.safe_radius = safe_radius
-
-
-    def forward(self, anchor, positive, dist_keypts):
-        pids = torch.FloatTensor(np.arange(len(anchor))).to(anchor.device)
-        # dists = cdist(anchor, positive, metric='euclidean')
-        dists = cdist(anchor, positive, metric='cosine')
-        # build false negative 
-        false_negative = dist_keypts < self.safe_radius
-
-        pos_mask = torch.eq(torch.unsqueeze(pids, dim=1), torch.unsqueeze(pids, dim=0))
-        neg_mask = torch.logical_not(pos_mask | false_negative)
-
-        # dists * pos_mask get the distance of each valid anchor-positive pair.
-        furthest_positive, _ = torch.min(dists + 1e5 * (1-pos_mask.float()).float(), dim=1)
-        # here we use "dists +  10000*pos_mask" to avoid the anchor-positive pair been selected.
-        closest_negative, _ = torch.max(dists *  (1-pos_mask.float()).float(), dim=1)
-        # closest_negative_row, _ = torch.min(dists + 1e5 * pos_mask.float(), dim=0)
-        # closest_negative = torch.min(closest_negative_col, closest_negative_row)
-        average_negative = (torch.sum(dists, dim=-1) - furthest_positive) / (dists.shape[0] - 1)
-        diff = furthest_positive - closest_negative
-        accuracy = (diff > 0).sum() * 100.0 / diff.shape[0]
-
-        pos = dists + 1e5 * neg_mask.float()
-        pos_weight = (self.pos_optimal - pos).detach()
-        pos_weight = torch.max(torch.zeros_like(pos_weight), pos_weight)
-        lse_positive = torch.logsumexp(- self.log_scale * (pos - self.pos_margin) * pos_weight, dim=-1)
-
-        
-        neg = dists - 1e5 * (~neg_mask).float()
-        neg_weight =  (neg - self.neg_optimal).detach()
-        neg_weight = torch.max(torch.zeros_like(neg_weight), neg_weight)
-        lse_negative_row = torch.logsumexp(- self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-1)
-        lse_negative_col = torch.logsumexp(- self.log_scale * (self.neg_margin - neg) * neg_weight, dim=-2)
-
-        loss_col = F.softplus(lse_positive + lse_negative_row) / self.log_scale
-        loss_row = F.softplus(lse_positive + lse_negative_col) / self.log_scale
-        loss = loss_col + loss_row
-
-        return torch.mean(loss), accuracy, furthest_positive.tolist(), average_negative.tolist(), 0, dists
-
 
 
 class DetLoss(nn.Module):

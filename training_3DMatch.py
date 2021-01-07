@@ -9,7 +9,7 @@ from trainer import Trainer
 from models.architectures import KPFCNN
 # from models.D3Feat import KPFCNN
 from datasets.dataloader import get_dataloader
-from utils.loss import ContrastiveLoss, CircleLoss, DetLoss
+from utils.loss import ContrastiveLoss, DetLoss, CircleLoss
 from torch import optim
 from torch import nn
 import torch
@@ -125,9 +125,11 @@ if __name__ == '__main__':
             )
     else:
         desc_loss = CircleLoss(
-            m=config.m,
+            dist_type=config.dist_type,
             log_scale=config.log_scale,
-            safe_radius=config.safe_radius
+            safe_radius=config.safe_radius,
+            pos_margin=config.pos_margin,
+            neg_margin=config.neg_margin,
         ) 
     
     config.evaluation_metric = {
