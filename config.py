@@ -47,6 +47,7 @@ net_arg.add_argument('--modulated', type=str2bool, default=False)
  
 # Loss configurations
 loss_arg = add_argument_group('Loss')
+loss_arg.add_argument('--dist_type', type=str, default='euclidean')
 loss_arg.add_argument('--desc_loss', type=str, default='circle', choices=['contrastive', 'circle'])
 loss_arg.add_argument('--pos_margin', type=float, default=0.1)
 loss_arg.add_argument('--neg_margin', type=float, default=1.4)
