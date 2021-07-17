@@ -42,6 +42,7 @@ python test.py --chosen_snapshot [timestr of the model]
 ```
 Then the geometric registration result will be saved in `geometric_registration/`.
 
+Pretrained weights: [Google Drive](https://drive.google.com/file/d/1aE_Fkt9Cw3Dgq8MbgW5CGCxhy9f5P_Yu/view?usp=sharing)
 
 ## Acknowledgment
 
