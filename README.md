@@ -52,3 +52,25 @@ Pretrained weights: [Google Drive](https://drive.google.com/file/d/1aE_Fkt9Cw3Dg
 
 We would like to thank the open-source code of [KPConv](https://github.com/HuguesTHOMAS/KPConv-PyTorch).
 
+# Replenish
+## Added registration demo
+The demo data is placed in the demo_data path.
+You should modify the "TODO" in demo file according to your own point cloud characteristics. Then, the demo can be showed by running 
+```sh
+python demo.py
+```
+## Demo example diagram
+### 1. original_pose
+![original_pose](demo_pic/original_pose.png)
+
+### 2. after_ransac
+![after_ransac](demo_pic/after_ransac.png)
+
+### 3. after_icp
+![after_icp](demo_pic/after_icp.png)
+
+### 4. keypts_src
+![keypts_src](demo_pic/keypts_src.png)
+
+### 5. keypts_tgt
+![keypts_tgt](demo_pic/keypts_tgt.png)
